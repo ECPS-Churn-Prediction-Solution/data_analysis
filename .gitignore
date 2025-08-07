@@ -1,0 +1,52 @@
+# ## 가상 환경 (Virtual Environments) ##
+# 가상 환경 폴더는 각 개발자의 컴퓨터마다 다르므로 저장소에 포함하지 않습니다.
+venv/
+.venv/
+env/
+.env/
+ENV/
+
+# ## Python 캐시 파일 ##
+# 파이썬이 실행 속도를 높이기 위해 자동으로 생성하는 컴파일된 파일들입니다.
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# ## IDE 및 에디터 설정 파일 ##
+# VS Code, PyCharm 등 각 개발자의 에디터 설정은 공유할 필요가 없습니다.
+.vscode/
+.idea/
+
+# ## 빌드 및 배포 관련 폴더 ##
+# 라이브러리를 빌드하거나 배포할 때 생성되는 폴더들입니다.
+build/
+dist/
+*.egg-info/
+downloads/
+eggs/
+lib/
+lib64/
+sdist/
+wheels/
+*.egg
+
+# ## 민감한 정보 파일 ##
+# API 키, 데이터베이스 비밀번호 등 민감한 정보는 절대 Git에 올리면 안 됩니다.
+.env
+*.env
+
+# ## 테스트 관련 캐시 ##
+# pytest, coverage 등 테스트 도구가 생성하는 캐시 파일입니다.
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ## 운영체제(OS) 생성 파일 ##
+# macOS나 Windows가 자동으로 생성하는 시스템 파일입니다.
+.DS_Store
+Thumbs.db
+
+# ## 로그 파일 ##
+# 애플리케이션 실행 중 발생하는 로그는 저장소에 포함하지 않습니다.
+*.log
