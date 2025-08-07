@@ -11,18 +11,17 @@ fake = Faker('ko_KR')
 np.random.seed(42)
 
 # --- 생성할 데이터 개수 설정 ---
-N_USERS = 1000
+N_USERS = 250
 N_PRODUCTS = 100
-N_ORDERS = 4000
+N_ORDERS = 1000
 
-print(f"사용자 {N_USERS}명, 상품 {N_PRODUCTS}개, 주문 약 {N_ORDERS}건에 대한 Raw 데이터를 생성합니다.")
+print(f"사용자 {N_USERS}명, 상품 {N_PRODUCTS}개, 주문 약 {N_ORDERS}건에 대한 Raw 데이터를 생성합니다.\n")
 
 # --- 1. Categories 테이블 생성 ---
 categories_data = {
-    'category_id': [1, 2, 3, 4, 5, 11, 12, 13, 21, 22, 31, 41],
-    'category_name': ['상의', '하의', '아우터', '신발', '액세서리',
-                      '티셔츠', '셔츠', '니트', '청바지', '슬랙스', '자켓', '스니커즈'],
-    'parent_id': [None, None, None, None, None, 1, 1, 1, 2, 2, 3, 4]
+    'category_id': [1, 2, 3, 4, 11, 12, 13, 21, 22],
+    'category_name': ['상의', '하의', '아우터', '신발', '티셔츠', '셔츠', '니트', '청바지', '슬랙스'],
+    'parent_id': [None, None, None, None, 1, 1, 1, 2, 2]
 }
 categories_df = pd.DataFrame(categories_data)
 
@@ -47,7 +46,7 @@ products_data = []
 sub_categories = categories_df[categories_df['parent_id'].notna()]
 for i in range(1, N_PRODUCTS + 1):
     category_row = sub_categories.sample(1).iloc[0]
-    category_id = category_row['category_id']
+    category_id = int(category_row['category_id'])
     category_name = category_row['category_name']
 
     products_data.append({
@@ -69,7 +68,7 @@ for user_id in users_df['user_id']:
     for category_id in interested_categories:
         user_interests_data.append({
             'user_id': user_id,
-            'category_id': category_id
+            'category_id': int(category_id)
         })
 user_interests_df = pd.DataFrame(user_interests_data)
 
@@ -119,17 +118,17 @@ order_items_df = pd.DataFrame(order_items_data)
 print("데이터 생성이 완료되었습니다. 이제 각 테이블을 CSV 파일로 저장합니다.")
 
 # --- 6. 각 데이터프레임을 별도의 CSV 파일로 저장 ---
-# 현재 스크립트 파일이 있는 위치에 'raw_data' 폴더를 만들고 그 안에 저장
-output_dir = 'raw_data'
+output_dir = 'raw_data_csv'
 if not os.path.exists(output_dir):
     os.makedirs(output_dir)
 
-users_df.to_csv(os.path.join(output_dir, 'users.csv'), index=False)
-categories_df.to_csv(os.path.join(output_dir, 'categories.csv'), index=False)
-products_df.to_csv(os.path.join(output_dir, 'products.csv'), index=False)
-user_interests_df.to_csv(os.path.join(output_dir, 'user_interests.csv'), index=False)
-orders_df.to_csv(os.path.join(output_dir, 'orders.csv'), index=False)
-order_items_df.to_csv(os.path.join(output_dir, 'order_items.csv'), index=False)
+# ⭐️⭐️⭐️ 파일 확장자는 .csv, 인코딩은 'utf-8-sig'로 지정 ⭐️⭐️⭐️
+users_df.to_csv(os.path.join(output_dir, 'users.csv'), index=False, encoding='utf-8-sig')
+categories_df.to_csv(os.path.join(output_dir, 'categories.csv'), index=False, encoding='utf-8-sig')
+products_df.to_csv(os.path.join(output_dir, 'products.csv'), index=False, encoding='utf-8-sig')
+user_interests_df.to_csv(os.path.join(output_dir, 'user_interests.csv'), index=False, encoding='utf-8-sig')
+orders_df.to_csv(os.path.join(output_dir, 'orders.csv'), index=False, encoding='utf-8-sig')
+order_items_df.to_csv(os.path.join(output_dir, 'order_items.csv'), index=False, encoding='utf-8-sig')
 
 print(f"\n성공적으로 6개의 CSV 파일이 '{output_dir}' 폴더에 저장되었습니다.")
 print(f"저장된 파일 목록: {os.listdir(output_dir)}")
