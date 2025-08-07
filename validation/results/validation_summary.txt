@@ -11,9 +11,9 @@
 
 # 2. Confusion Matrix 요약
 # -------------------------------------------------------
-# - True Negative (TN): 979  (정상 -> 정상)
+# - True Negative (TN): 761  (정상 -> 정상)
 # - False Positive (FP): 0 (정상 -> 이탈) *Type I Error
-# - False Negative (FN): 21 (이탈 -> 정상) *Type II Error
+# - False Negative (FN): 239 (이탈 -> 정상) *Type II Error
 # - True Positive (TP): 0  (이탈 -> 이탈)
 
 
@@ -21,15 +21,15 @@
 # -------------------------------------------------------
               precision    recall  f1-score   support
 
-           0       0.98      1.00      0.99       979
-           1       0.00      0.00      0.00        21
+           0       0.76      1.00      0.86       761
+           1       0.00      0.00      0.00       239
 
-    accuracy                           0.98      1000
-   macro avg       0.49      0.50      0.49      1000
-weighted avg       0.96      0.98      0.97      1000
+    accuracy                           0.76      1000
+   macro avg       0.38      0.50      0.43      1000
+weighted avg       0.58      0.76      0.66      1000
 
 
 # 4. ROC AUC Score
 # -------------------------------------------------------
-# - ROC AUC: 0.4865
+# - ROC AUC: 0.8793
 # - 해석: 모델이 이탈 고객과 비이탈 고객을 얼마나 잘 구별해내는지를 나타내는 종합적인 성능 지표. 1에 가까울수록 우수함.
