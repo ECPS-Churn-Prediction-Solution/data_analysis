@@ -1,0 +1,72 @@
+
+======================================================================
+SETUP
+======================================================================
+Reference date: 2025-08-11 19:16:11
+Churn threshold: 2025-05-13 19:16:11 (inactive 90 days)
+Features for clustering: ['login_count', 'order_count', 'avg_cart_per_login', 'category_diversity']
+
+======================================================================
+RFM ANALYSIS - CHURN BY BUCKET
+======================================================================
+                churn_rate     n
+RFM_bucket                      
+Low(3-5)          0.000000   461
+Mid-Low(6-8)      0.366465  3793
+Mid-High(9-11)    0.211463  4327
+High(12-15)       0.154334  1419
+
+RFM Bucket descriptive stats
+                order_count_mean  total_spend_mean  login_count_mean  recency_days_mean  churn_rate     n
+RFM_bucket                                                                                               
+Low(3-5)                8.403471    4401762.039046         13.774403           3.236443    0.000000   461
+Mid-Low(6-8)           10.249143    5462919.272344         15.206169          61.271026    0.366465  3793
+Mid-High(9-11)         24.122256   13249151.513751         21.384331          28.916339    0.211463  4327
+High(12-15)            34.039464   18972084.848485         26.041579          22.169133    0.154334  1419
+
+======================================================================
+KMEANS CLUSTERING
+======================================================================
+Silhouette scores (k=3..6):
+   k  silhouette
+0  3    0.304242
+1  4    0.296962
+2  5    0.258184
+3  6    0.234490
+
+KMeans cluster summary (means/medians & churn):
+                login_count_mean  order_count_mean  avg_cart_per_login_mean  category_diversity_mean  login_count_median  order_count_median  avg_cart_per_login_median  category_diversity_median  churn_rate  size
+kmeans_cluster                                                                                                                                                                                                      
+2                      15.906810         15.003584                 0.155623                 6.873528           16.000000           14.000000                   0.166667                   7.000000    0.291091  3906
+0                      28.674592         32.965693                 0.244319                 6.997283           28.000000           32.000000                   0.241379                   7.000000    0.071332  2944
+1                      15.690029         15.475177                 0.415796                 6.871506           16.000000           14.000000                   0.384615                   7.000000    0.296204  2397
+3                      12.418327          3.557769                 0.242992                 4.317397           12.000000            3.000000                   0.222222                   5.000000    0.620186   753
+
+Cluster profiles (Z-score means):
+                login_count  order_count  avg_cart_per_login  category_diversity
+kmeans_cluster                                                                  
+0                  1.688739     1.543147           -0.215806            0.650657
+1                 -0.399170    -0.121374            1.601473            0.538911
+2                 -0.364312    -0.166254           -1.155799            0.540708
+3                 -0.925257    -1.255518           -0.229869           -1.730276
+
+======================================================================
+HIERARCHICAL CLUSTERING (WARD)
+======================================================================
+Agglomerative (n=4) cluster summary:
+                login_count_mean  order_count_mean  avg_cart_per_login_mean  category_diversity_mean  login_count_median  order_count_median  avg_cart_per_login_median  category_diversity_median  churn_rate  size
+hclust_cluster                                                                                                                                                                                                      
+0                      27.145388         28.909849                 0.226102                 7.000000           26.000000           28.000000                   0.222222                   7.000000    0.107869  3838
+1                      15.448788         15.167690                 0.374651                 6.922456           15.000000           14.000000                   0.357143                   7.000000    0.302746  3095
+3                      12.843628         17.018364                 0.108064                 6.966055           13.000000           17.000000                   0.111111                   7.000000    0.252643  1797
+2                      14.513386          5.469291                 0.224613                 5.008661           14.000000            3.000000                   0.207615                   5.000000    0.566142  1270
+
+======================================================================
+SAVED CHARTS
+======================================================================
+- hclust_dendrogram.png
+- hclust_pca_scatter.png
+- kmeans_pca_scatter.png
+- kmeans_profiles.png
+- kmeans_silhouette.png
+- rfm_bucket_churn.png
