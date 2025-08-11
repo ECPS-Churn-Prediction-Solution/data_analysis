@@ -1,157 +1,267 @@
-import pandas as pd
+# data_generator_tuned.py
+import os, random
+from datetime import datetime, timedelta
 import numpy as np
+import pandas as pd
 from faker import Faker
-from datetime import datetime
-import os
 
-# Faker 초기화 (한국어 설정)
+# --------------------------
+# 설정
+# --------------------------
+SEED = 2025
+N_USERS = 10_000
+N_PRODUCTS = 1_000
+N_ORDERS = 200_000
+OUT_DIR = "raw_data_current"     # ✅ EDA가 읽는 폴더
+
+np.random.seed(SEED)
+random.seed(SEED)
 fake = Faker('ko_KR')
+Faker.seed(SEED)
 
-# 재현성을 위한 랜덤 시드 고정
-np.random.seed(42)
+# --------------------------
+# 유틸
+# --------------------------
+def sigmoid(x):
+    return 1 / (1 + np.exp(-x))
 
-# --- 생성할 데이터 개수 설정 ---
-N_USERS = 1000
-N_PRODUCTS = 100
-N_ORDERS = 4000 # 사용자 수에 맞춰 주문 수도 늘림
+now = datetime.now()
+two_years_ago = now - timedelta(days=730)
+ninety_days_ago = now - timedelta(days=90)
 
-print(f"사용자 {N_USERS}명, 상품 {N_PRODUCTS}개, 주문 약 {N_ORDERS}건에 대한 Raw 데이터를 생성합니다.\n")
+os.makedirs(OUT_DIR, exist_ok=True)
 
-# --- 1. Categories 테이블 생성 ---
+# --------------------------
+# 1) 카테고리/상품
+# --------------------------
 categories_data = {
     'category_id': [1, 2, 3, 4, 5, 11, 12, 13, 21, 22, 31, 41],
-    'category_name': ['상의', '하의', '아우터', '신발', '액세서리', 
-                      '티셔츠', '셔츠', '니트', '청바지', '슬랙스', '자켓', '스니커즈'],
-    'parent_id': [None, None, None, None, None, 1, 1, 1, 2, 2, 3, 4]
+    'category_name': ['상의','하의','아우터','신발','액세서리','티셔츠','셔츠','니트','청바지','슬랙스','자켓','스니커즈'],
+    'parent_id': [None,None,None,None,None,1,1,1,2,2,3,4]
 }
 categories_df = pd.DataFrame(categories_data)
 
-# --- 2. Users 테이블 생성 ---
-users_data = []
-for i in range(1, N_USERS + 1):
-    created_time = fake.date_time_this_decade()
-    users_data.append({
+sub_categories = categories_df[categories_df['parent_id'].notna()]
+products = []
+for i in range(1, N_PRODUCTS+1):
+    row = sub_categories.sample(1).iloc[0]
+    products.append({
+        'product_id': i,
+        'category_id': int(row['category_id']),
+        'product_name': f"{row['category_name']} {fake.color_name()} {np.random.choice(['베이직','오버핏','슬림핏'])}",
+        'description': fake.catch_phrase(),
+        'price': float(round(np.random.uniform(20_000, 200_000), -2)),
+        'stock_quantity': np.random.randint(0, 100),
+        'created_at': fake.date_time_between(start_date='-1y', end_date='now')
+    })
+products_df = pd.DataFrame(products)
+
+# --------------------------
+# 2) 유저
+# --------------------------
+signup_sources = ['ads','search','sns','referral','direct']
+users = []
+for i in range(1, N_USERS+1):
+    created_at = fake.date_time_between(start_date=two_years_ago, end_date=now)
+    gender = np.random.choice(['MALE','FEMALE'], p=[0.6, 0.4])   # 불균형 약간
+    bd = fake.date_of_birth(minimum_age=20, maximum_age=60)
+    users.append({
         'user_id': i,
         'email': fake.email(),
         'password_hash': fake.sha256(),
         'user_name': fake.name(),
-        'gender': np.random.choice(['MALE', 'FEMALE'], p=[0.9, 0.1]),
-        'birthdate': fake.date_of_birth(minimum_age=20, maximum_age=40),
+        'gender': gender,
+        'birthdate': bd,
         'phone_number': fake.phone_number(),
-        'created_at': created_time
+        'created_at': created_at,
+        'signup_source': np.random.choice(signup_sources, p=[0.25,0.25,0.2,0.15,0.15])
     })
-users_df = pd.DataFrame(users_data)
+users_df = pd.DataFrame(users)
 
-# --- 3. Products 테이블 생성 ---
-products_data = []
-sub_categories = categories_df[categories_df['parent_id'].notna()]
-for i in range(1, N_PRODUCTS + 1):
-    category_row = sub_categories.sample(1).iloc[0]
-    category_id = int(category_row['category_id'])
-    category_name = category_row['category_name']
-    products_data.append({
-        'product_id': i,
-        'category_id': category_id,
-        'product_name': f"{category_name} {fake.color_name()} {np.random.choice(['베이직', '오버핏', '슬림핏'])}",
-        'description': fake.catch_phrase(),
-        'price': float(round(np.random.uniform(20000, 200000), -2)),
-        'stock_quantity': np.random.randint(0, 100),
-        'created_at': fake.date_time_this_year()
-    })
-products_df = pd.DataFrame(products_data)
+# 연령/연령대
+users_df['age'] = now.year - pd.to_datetime(users_df['birthdate']).dt.year
+users_df['age_group'] = pd.cut(users_df['age'], bins=[0,24,34,44,200], labels=['<25','25-34','35-44','45+'], right=True, include_lowest=True)
+is_female = (users_df['gender']=='FEMALE').astype(int)
+is_45p   = (users_df['age_group']=='45+').astype(int)
 
-# --- 4. User_Interests 테이블 생성 ---
-user_interests_data = []
-for user_id in users_df['user_id']:
-    num_interests = np.random.randint(1, 4)
-    interested_categories = np.random.choice(categories_df['category_id'], size=num_interests, replace=False)
-    for category_id in interested_categories:
-        user_interests_data.append({'user_id': user_id, 'category_id': int(category_id)})
-user_interests_df = pd.DataFrame(user_interests_data)
+# --------------------------
+# 3) 로그인/장바구니 (활동 프록시)
+#    로그인은 이후 활성도/주문 수에 영향
+# --------------------------
+# 기본 로그인 평균(포아송) + 개인 무작위
+base_login_mu = np.random.uniform(8, 30, size=N_USERS)   # 개별 베이스
+login_noise   = np.random.normal(0, 3, size=N_USERS)
+login_mu      = np.clip(base_login_mu + login_noise + 3*is_female - 2*is_45p, 1, None)  # 여성 조금 ↑, 45+ 조금 ↓
+login_counts  = np.random.poisson(login_mu).astype(int)
+login_counts[login_counts<1] = 1
 
-# --- 5. Orders 및 Order_Items 테이블 생성 (⭐️ used_coupon_code 추가) ---
-orders_data = []
-order_items_data = []
-order_item_id_counter = 1
-for order_id in range(1, N_ORDERS + 1):
-    user_id = np.random.choice(users_df['user_id'])
-    user_signup_date = users_df.loc[users_df['user_id'] == user_id, 'created_at'].iloc[0]
-    order_date = fake.date_time_between(start_date=user_signup_date)
-    # 쿠폰 사용 여부 랜덤 할당
-    used_coupon = np.random.choice([None, 'SUMMER25', 'NEW15'], p=[0.7, 0.2, 0.1])
-    
-    orders_data.append({
-        'order_id': order_id,
-        'user_id': user_id,
-        'order_date': order_date,
-        'total_amount': 0.0,
-        'status': np.random.choice(['COMPLETED', 'SHIPPED', 'PENDING', 'CANCELLED'], p=[0.7, 0.15, 0.1, 0.05]),
-        'shipping_address': fake.address(),
-        'used_coupon_code': used_coupon
-    })
-    
-    num_items_in_order = np.random.randint(1, 5)
-    order_total_amount = 0
-    for _ in range(num_items_in_order):
-        product = products_df.sample(1).iloc[0]
-        quantity = np.random.randint(1, 4)
-        order_items_data.append({
-            'order_item_id': order_item_id_counter,
-            'order_id': order_id,
-            'product_id': product['product_id'],
-            'quantity': quantity,
-            'price_per_item': product['price']
+login_rows = []
+for uid, cnt in zip(users_df['user_id'], login_counts):
+    for _ in range(cnt):
+        login_rows.append({
+            'login_id': len(login_rows)+1,
+            'user_id': uid,
+            'login_at': fake.date_time_between(start_date=users_df.loc[uid-1,'created_at'], end_date=now)
         })
-        order_total_amount += quantity * product['price']
-        order_item_id_counter += 1
-    orders_data[-1]['total_amount'] = float(order_total_amount)
-orders_df = pd.DataFrame(orders_data)
-order_items_df = pd.DataFrame(order_items_data)
+user_logins_df = pd.DataFrame(login_rows)
 
-# --- 6. User_Logins 및 Cart_Items 테이블 생성 (⭐️ 신규 추가) ---
-user_logins_data = []
-cart_items_data = []
-cart_item_id_counter = 1
-for i in range(1, N_USERS + 1):
-    user = users_df.loc[users_df['user_id'] == i].iloc[0]
-    # 로그인 기록 생성
-    for _ in range(np.random.randint(1, 50)):
-        user_logins_data.append({
-            'login_id': len(user_logins_data) + 1,
-            'user_id': i,
-            'login_at': fake.date_time_between(start_date=user['created_at'])
-        })
-    # 장바구니 기록 생성
-    for _ in range(np.random.randint(0, 15)):
-        cart_items_data.append({
-            'cart_item_id': cart_item_id_counter,
-            'user_id': i,
-            'product_id': np.random.choice(products_df['product_id']),
+# 장바구니
+cart_mu = np.maximum(0, login_counts * np.random.uniform(0.15, 0.35, size=N_USERS))
+cart_counts = np.random.poisson(cart_mu).astype(int)
+
+cart_rows = []
+cart_id = 1
+for uid, cnt in zip(users_df['user_id'], cart_counts):
+    for _ in range(cnt):
+        cart_rows.append({
+            'cart_item_id': cart_id,
+            'user_id': uid,
+            'product_id': np.random.randint(1, N_PRODUCTS+1),
             'quantity': np.random.randint(1,3),
-            'added_at': fake.date_time_between(start_date=user['created_at'])
+            'added_at': fake.date_time_between(start_date=users_df.loc[uid-1,'created_at'], end_date=now)
         })
-        cart_item_id_counter += 1
-user_logins_df = pd.DataFrame(user_logins_data)
-cart_items_df = pd.DataFrame(cart_items_data)
+        cart_id += 1
+cart_items_df = pd.DataFrame(cart_rows)
 
+# --------------------------
+# 4) 쿠폰 사용 경험(used_coupon_any) 먼저 부여
+#    활동 많은 유저에게 사용 비율 약간 높임
+# --------------------------
+login_scaled = (login_counts - login_counts.mean())/ (login_counts.std() + 1e-9)
+# 베이스 45% + 로그인 영향 ±, 여성/45+ 약간 보정
+coupon_logit = -0.2 + 0.35*login_scaled + 0.10*is_female - 0.15*is_45p
+coupon_prob  = sigmoid(coupon_logit)
+used_coupon_any = (np.random.rand(N_USERS) < coupon_prob).astype(int)
 
-print("데이터 생성이 완료되었습니다. 이제 각 테이블을 CSV 파일로 저장합니다.")
+# --------------------------
+# 5) 활성도(=최근 주문 존재) 확률 설계
+#    - 베이스 0.7 근처 목표, 계수는 과도한 유의성 방지용으로 보수적
+# --------------------------
+# 조정 가능한 계수
+COEF_BASE      = 0.7      # 베이스 로짓 오프셋 (후에 로짓 변환)
+COEF_FEMALE    = 0.20     # 여성 + (활성 ↑ → 이탈 ↓)
+COEF_AGE45P    = -0.25    # 45+ - (활성 ↓)
+COEF_LOGIN     = 0.55     # 로그인 z-score +
+COEF_COUPON    = 0.35     # 쿠폰 경험 +
+# 로짓 공간으로 바꿔 계산
+base_logit = np.log(COEF_BASE/(1-COEF_BASE))
+act_logit = (base_logit
+             + COEF_FEMALE*is_female
+             + COEF_AGE45P*is_45p
+             + COEF_LOGIN*login_scaled
+             + COEF_COUPON*used_coupon_any)
+p_active = sigmoid(act_logit)   # 최근 90일 내 주문이 있을 확률
 
-# --- 7. 각 데이터프레임을 별도의 CSV 파일로 저장 (⭐️ 총 8개) ---
-output_dir = 'raw_data_final'
-if not os.path.exists(output_dir):
-    os.makedirs(output_dir)
+is_active_recent = (np.random.rand(N_USERS) < p_active)
 
-# 엑셀에서 한글이 깨지지 않도록 encoding='utf-8-sig' 옵션 사용
-users_df.to_csv(os.path.join(output_dir, 'users.csv'), index=False, encoding='utf-8-sig')
-categories_df.to_csv(os.path.join(output_dir, 'categories.csv'), index=False, encoding='utf-8-sig')
-products_df.to_csv(os.path.join(output_dir, 'products.csv'), index=False, encoding='utf-8-sig')
-user_interests_df.to_csv(os.path.join(output_dir, 'user_interests.csv'), index=False, encoding='utf-8-sig')
-orders_df.to_csv(os.path.join(output_dir, 'orders.csv'), index=False, encoding='utf-8-sig')
-order_items_df.to_csv(os.path.join(output_dir, 'order_items.csv'), index=False, encoding='utf-8-sig')
-user_logins_df.to_csv(os.path.join(output_dir, 'user_logins.csv'), index=False, encoding='utf-8-sig')
-cart_items_df.to_csv(os.path.join(output_dir, 'cart_items.csv'), index=False, encoding='utf-8-sig')
+# --------------------------
+# 6) 주문 수 생성 & 20만으로 정규화
+#    - 활성 유저는 더 많이 구매
+# --------------------------
+# 개인 평균 주문수(포아송 평균) 설계
+base_lambda = np.exp(1.2 + 0.6*is_active_recent + 0.3*login_scaled)  # 평균 15~20 근방
+orders_per_user = np.random.poisson(base_lambda).astype(int)
+orders_per_user[orders_per_user<1] = 1
 
+# 총합을 N_ORDERS로 스케일
+total_orders = orders_per_user.sum()
+scale = N_ORDERS / total_orders
+orders_per_user = np.maximum(1, np.floor(orders_per_user * scale)).astype(int)
 
-print(f"\n성공적으로 8개의 CSV 파일이 '{output_dir}' 폴더에 저장되었습니다.")
-print(f"저장된 파일 목록: {os.listdir(output_dir)}")
+# --------------------------
+# 7) Orders & Order Items
+#    - 활성 유저는 최근에 주문 날짜를 더 배치
+#    - 비활성 유저는 마지막 주문이 90일 이전으로 가도록 분포
+# --------------------------
+orders_rows = []
+order_items_rows = []
+order_id = 1
+order_item_id = 1
+
+for idx, uid in enumerate(users_df['user_id']):
+    k = int(orders_per_user[idx])
+    if k <= 0: 
+        continue
+
+    # 날짜 분포
+    if is_active_recent[idx]:
+        # 70%는 최근 90일 내, 30%는 과거 2년~최근 사이 섞기
+        recent_cnt = int(round(k * 0.7))
+        past_cnt   = k - recent_cnt
+        recent_dates = [fake.date_time_between(start_date=ninety_days_ago, end_date=now) for _ in range(recent_cnt)]
+        past_dates   = [fake.date_time_between(start_date=users_df.loc[uid-1,'created_at'], end_date=ninety_days_ago - timedelta(days=1)) for _ in range(past_cnt)]
+        dates = recent_dates + past_dates
+    else:
+        # 전부 90일 이전
+        dates = [fake.date_time_between(start_date=users_df.loc[uid-1,'created_at'], end_date=ninety_days_ago - timedelta(days=1)) for _ in range(k)]
+
+    # 쿠폰 사용 확률(경험자 더 높게)
+    p_coupon = 0.15 + 0.35*used_coupon_any[idx]   # 0.15 ~ 0.50
+
+    for d in dates:
+        used_coupon_code = np.random.choice([None, 'WELCOME10', 'SUMMER25'], p=[1-p_coupon, p_coupon*0.6, p_coupon*0.4])
+
+        orders_rows.append({
+            'order_id': order_id,
+            'user_id': uid,
+            'order_date': d,
+            'total_amount': 0.0,   # 뒤에서 채움
+            'status': np.random.choice(['COMPLETED','SHIPPED','PENDING','CANCELLED'], p=[0.72,0.15,0.08,0.05]),
+            'shipping_address': fake.address(),
+            'used_coupon_code': used_coupon_code
+        })
+
+        # 아이템 1~4개
+        n_items = np.random.randint(1,5)
+        order_total = 0.0
+        for _ in range(n_items):
+            prod = products_df.sample(1).iloc[0]
+            qty = np.random.randint(1,4)
+            order_items_rows.append({
+                'order_item_id': order_item_id,
+                'order_id': order_id,
+                'product_id': int(prod['product_id']),
+                'quantity': qty,
+                'price_per_item': float(prod['price'])
+            })
+            order_total += qty * float(prod['price'])
+            order_item_id += 1
+
+        orders_rows[-1]['total_amount'] = float(order_total)
+        order_id += 1
+
+# 만약 스케일링 오차로 주문수가 살짝 넘쳤으면 자르기
+if len(orders_rows) > N_ORDERS:
+    orders_rows = orders_rows[:N_ORDERS]
+    # 관련 order_items도 컷
+    valid_ids = set(r['order_id'] for r in orders_rows)
+    order_items_rows = [r for r in order_items_rows if r['order_id'] in valid_ids]
+
+orders_df = pd.DataFrame(orders_rows)
+order_items_df = pd.DataFrame(order_items_rows)
+
+# --------------------------
+# 8) User Interests (간단)
+# --------------------------
+user_interests_rows = []
+for uid in users_df['user_id']:
+    n = np.random.randint(1,4)
+    cats = np.random.choice(categories_df['category_id'], size=n, replace=False)
+    for c in cats:
+        user_interests_rows.append({'user_id': int(uid), 'category_id': int(c)})
+user_interests_df = pd.DataFrame(user_interests_rows)
+
+# --------------------------
+# 9) CSV 저장
+# --------------------------
+users_out = users_df[['user_id','email','password_hash','user_name','gender','birthdate','phone_number','created_at']]
+users_out.to_csv(os.path.join(OUT_DIR, 'users.csv'), index=False, encoding='utf-8-sig')
+categories_df.to_csv(os.path.join(OUT_DIR, 'categories.csv'), index=False, encoding='utf-8-sig')
+products_df.to_csv(os.path.join(OUT_DIR, 'products.csv'), index=False, encoding='utf-8-sig')
+user_interests_df.to_csv(os.path.join(OUT_DIR, 'user_interests.csv'), index=False, encoding='utf-8-sig')
+orders_df.to_csv(os.path.join(OUT_DIR, 'orders.csv'), index=False, encoding='utf-8-sig')
+order_items_df.to_csv(os.path.join(OUT_DIR, 'order_items.csv'), index=False, encoding='utf-8-sig')
+user_logins_df.to_csv(os.path.join(OUT_DIR, 'user_logins.csv'), index=False, encoding='utf-8-sig')
+cart_items_df.to_csv(os.path.join(OUT_DIR, 'cart_items.csv'), index=False, encoding='utf-8-sig')
+
+print(f"✅ Done. Saved to '{OUT_DIR}'")

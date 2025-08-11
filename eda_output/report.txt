@@ -1,0 +1,154 @@
+
+======================================================================
+DATA SHAPES
+======================================================================
+users: (10000, 8)
+orders: (195428, 7)
+order_items: (488504, 5)
+user_logins: (193510, 3)
+cart_items: (48345, 5)
+products: (1000, 7)
+categories: (12, 3)
+
+======================================================================
+REFERENCE & CHURN DEFINITION
+======================================================================
+Reference date: 2025-08-11 19:16:11
+Churn threshold: last purchase < 2025-05-13 19:16:11  (inactive 90 days)
+Overall churn rate: 0.2524
+
+======================================================================
+SUMMARY STATISTICS (NUMERIC)
+======================================================================
+                               count            mean            std           min            25%            50%             75%             max
+order_count             10000.000000       19.542800      12.129752      3.000000      10.000000      17.000000       28.000000       89.000000
+total_spend             10000.000000 10700053.210000 6787712.622980 307700.000000 5467250.000000 9518000.000000 14704500.000000 50469400.000000
+avg_order_value         10000.000000   547772.765749   97468.548078 102566.666667  491825.965074  545616.666667   602268.214286  1128500.000000
+avg_days_between_orders 10000.000000       23.409852      28.792315      0.000000       7.187302      15.500000       28.250000      317.000000
+login_count             10000.000000       19.351000       8.552901      1.000000      13.000000      19.000000       25.000000       53.000000
+cart_count              10000.000000        4.834500       3.290713      0.000000       2.000000       4.000000        7.000000       25.000000
+recency_days            10000.000000       39.047200      61.495455      0.000000       2.000000       7.000000       91.000000      552.000000
+RFM_sum                 10000.000000        9.000000       2.245018      3.000000       7.000000       9.000000       11.000000       15.000000
+age                     10000.000000       40.437900      11.954934     20.000000      30.000000      41.000000       51.000000       61.000000
+
+======================================================================
+MISSING VALUES (COUNT & RATIO)
+======================================================================
+                         missing_count  missing_ratio
+order_count                          0       0.000000
+total_spend                          0       0.000000
+avg_order_value                      0       0.000000
+avg_days_between_orders              0       0.000000
+login_count                          0       0.000000
+cart_count                           0       0.000000
+recency_days                         0       0.000000
+RFM_sum                              0       0.000000
+age                                  0       0.000000
+gender                               0       0.000000
+age_group                            0       0.000000
+used_coupon                          0       0.000000
+churn                                0       0.000000
+
+======================================================================
+OUTLIERS (IQR METHOD)
+======================================================================
+                    column  outlier_count  outlier_ratio     lower_bound     upper_bound
+3  avg_days_between_orders            727       0.072700      -24.407000       59.844000
+2          avg_order_value            353       0.035300   326162.591000   767931.588000
+1              total_spend            179       0.017900 -8388625.000000 28560375.000000
+6             recency_days            177       0.017700     -131.500000      224.500000
+0              order_count            110       0.011000      -17.000000       55.000000
+5               cart_count             91       0.009100       -5.500000       14.500000
+4              login_count             37       0.003700       -5.000000       43.000000
+7                  RFM_sum              0       0.000000        1.000000       17.000000
+8                      age              0       0.000000       -1.500000       82.500000
+
+======================================================================
+CHURN RATES BY GROUP
+======================================================================
+[By Gender]
+        churn_rate
+gender            
+FEMALE    0.210606
+MALE      0.280020
+[By Age Group]
+           churn_rate
+age_group            
+<25          0.200870
+25-34        0.224322
+35-44        0.228992
+45+          0.297820
+[By Coupon]
+             churn_rate
+used_coupon            
+False          0.568207
+True           0.221661
+[By RFM Bucket]
+                churn_rate
+RFM_bucket                
+Low(3-5)          0.000000
+Mid-Low(6-8)      0.366465
+Mid-High(9-11)    0.211463
+High(12-15)       0.154334
+
+======================================================================
+CHI-SQUARE TESTS (Categorical vs Churn)
+======================================================================
+      variable  chi2_pvalue  dof table_shape
+0       gender     0.000000    1      (2, 2)
+1    age_group     0.000000    3      (4, 2)
+2  used_coupon     0.000000    1      (2, 2)
+
+======================================================================
+T-TEST (Numeric vs Churn; means)
+======================================================================
+                  variable  ttest_pvalue     mean_active   mean_churned
+0              order_count      0.000000       22.588684      10.520998
+1              total_spend      0.000000 12365294.007491 5767668.026941
+2          avg_order_value      0.901128   547686.852805  548027.236894
+3  avg_days_between_orders      0.000000       18.838833      36.949052
+4              login_count      0.000000       20.490102      15.977021
+5               cart_count      0.000000        5.095104       4.062599
+6             recency_days      0.000000        8.256688     130.247623
+7                  RFM_sum      0.000000        9.150749       8.553487
+8                      age      0.000000       39.896602      42.041204
+
+======================================================================
+MANN-WHITNEY U TEST (Numeric vs Churn; medians)
+======================================================================
+                  variable  mannwhitney_pvalue   median_active  median_churned
+0              order_count            0.000000       21.000000       10.000000
+1              total_spend            0.000000 11459200.000000  5064450.000000
+2          avg_order_value            0.343575   546406.470588   543478.571429
+3  avg_days_between_orders            0.000000       13.529412       25.666667
+4              login_count            0.000000       20.000000       15.000000
+5               cart_count            0.000000        5.000000        4.000000
+6             recency_days            0.000000        4.000000      109.000000
+7                  RFM_sum            0.000000        9.000000        8.000000
+8                      age            0.000000       40.000000       43.000000
+
+======================================================================
+SAVED CHARTS
+======================================================================
+- box_avg_order_value_by_churn.png
+- box_login_count_by_churn.png
+- box_order_count_by_churn.png
+- box_recency_days_by_churn.png
+- box_total_spend_by_churn.png
+- churn_by_age_group.png
+- churn_by_coupon.png
+- churn_by_gender.png
+- churn_by_rfm_bucket.png
+- correlation_matrix.png
+- count_age_group.png
+- count_gender.png
+- count_used_coupon.png
+- hist_RFM_sum.png
+- hist_age.png
+- hist_avg_days_between_orders.png
+- hist_avg_order_value.png
+- hist_cart_count.png
+- hist_login_count.png
+- hist_order_count.png
+- hist_recency_days.png
+- hist_total_spend.png
