@@ -1,0 +1,16 @@
+feature,importance
+days_since_last_session,2087
+monetary_avg_order,1501
+tenure_days,1402
+avg_items_per_order,1270
+days_between_orders,1256
+recency_score,1104
+age,954
+coupon_usage_rate,571
+frequency_score,355
+monetary_score,230
+cart_additions_last_30d,223
+num_interests,89
+gender_bin,50
+frequency_last_90d,23
+frequency_last_30d,2
