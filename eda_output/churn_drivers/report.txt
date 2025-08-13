@@ -1,0 +1,123 @@
+
+======================================================================
+SETUP
+======================================================================
+Reference date: 2025-08-11 19:16:11
+Churn threshold: last purchase < 2025-05-13 19:16:11 (inactive 90 days)
+Input dir: raw_data_current
+Output dir: eda_output\churn_drivers
+
+======================================================================
+LOGISTIC REGRESSION (Churn=1)
+======================================================================
+AUC: 0.822316 | Average Precision: 0.567204
+
+[Threshold tuning grid: 0.000 .. 1.000, step 0.0005]
+Default(0.5) -> thr=0.5000 | ACC=0.7180 | BAL=0.7432 | F1=0.5871 | MCC=0.4267 | TPR=0.7941 | TNR=0.6923 | TP=401, FP=460, TN=1035, FN=104
+Best Balanced Accuracy -> thr=0.4860 | ACC=0.7140 | BAL=0.7477 | F1=0.5903 | MCC=0.4331 | TPR=0.8158 | TNR=0.6796 | TP=412, FP=479, TN=1016, FN=93
+Best Youden J -> thr=0.4860 | ACC=0.7140 | BAL=0.7477 | F1=0.5903 | MCC=0.4331 | TPR=0.8158 | TNR=0.6796 | TP=412, FP=479, TN=1016, FN=93
+Best MCC -> thr=0.6165 | ACC=0.7705 | BAL=0.7436 | F1=0.6026 | MCC=0.4518 | TPR=0.6891 | TNR=0.7980 | TP=348, FP=302, TN=1193, FN=157
+Best F1 -> thr=0.6165 | ACC=0.7705 | BAL=0.7436 | F1=0.6026 | MCC=0.4518 | TPR=0.6891 | TNR=0.7980 | TP=348, FP=302, TN=1193, FN=157
+Best Accuracy -> thr=0.7050 | ACC=0.7925 | BAL=0.7130 | F1=0.5735 | MCC=0.4372 | TPR=0.5525 | TNR=0.8736 | TP=279, FP=189, TN=1306, FN=226
+
+Top positive coefficients (push churn up):
+                    feature      coef  odds_ratio
+4               login_count  0.219211    1.245094
+9               gender_MALE  0.168980    1.184096
+12            age_group_45+  0.156525    1.169441
+5                cart_count  0.078586    1.081756
+7        category_diversity  0.078233    1.081374
+2           avg_order_value  0.002831    1.002835
+8                       age  0.002483    1.002486
+1               total_spend -0.000521    0.999479
+3   avg_days_between_orders -0.002578    0.997425
+6        avg_cart_per_login -0.008588    0.991449
+10          age_group_25-34 -0.108858    0.896857
+11          age_group_35-44 -0.120435    0.886535
+13            age_group_<25 -0.259817    0.771193
+14         used_coupon_True -0.356401    0.700192
+0               order_count -1.989058    0.136824
+
+Top negative coefficients (protect against churn):
+                    feature      coef  odds_ratio
+4               login_count  0.219211    1.245094
+9               gender_MALE  0.168980    1.184096
+12            age_group_45+  0.156525    1.169441
+5                cart_count  0.078586    1.081756
+7        category_diversity  0.078233    1.081374
+2           avg_order_value  0.002831    1.002835
+8                       age  0.002483    1.002486
+1               total_spend -0.000521    0.999479
+3   avg_days_between_orders -0.002578    0.997425
+6        avg_cart_per_login -0.008588    0.991449
+10          age_group_25-34 -0.108858    0.896857
+11          age_group_35-44 -0.120435    0.886535
+13            age_group_<25 -0.259817    0.771193
+14         used_coupon_True -0.356401    0.700192
+0               order_count -1.989058    0.136824
+
+NOTE: Coefficients are standardized where numeric features were scaled.
+
+======================================================================
+RANDOM FOREST
+======================================================================
+AUC: 0.833255
+Top-20 Feature Importance:
+                    feature  importance
+1               total_spend    0.209966
+3   avg_days_between_orders    0.155741
+0               order_count    0.145735
+2           avg_order_value    0.104262
+4               login_count    0.085000
+6        avg_cart_per_login    0.081382
+8                       age    0.075636
+5                cart_count    0.052993
+7        category_diversity    0.030675
+14         used_coupon_True    0.016198
+9               gender_MALE    0.015215
+10          age_group_25-34    0.007498
+11          age_group_35-44    0.007463
+12            age_group_45+    0.007283
+13            age_group_<25    0.004953
+
+======================================================================
+XGBOOST (optional)
+======================================================================
+XGBoost not installed; skipped.
+
+======================================================================
+COX PROPORTIONAL HAZARDS
+======================================================================
+Model summary (first 60 rows):
+                             coef  exp(coef)  se(coef)  coef lower 95%  coef upper 95%  exp(coef) lower 95%  exp(coef) upper 95%   cmp to         z        p  -log2(p)
+covariate                                                                                                                                                             
+order_count             -0.228549   0.795688  0.099504       -0.423573       -0.033524             0.654703             0.967031 0.000000 -2.296880 0.021626  5.531115
+total_spend              0.000000   1.000000  0.000000       -0.000000        0.000000             1.000000             1.000000 0.000000  0.526669 0.598423  0.740762
+avg_order_value          0.000000   1.000000  0.000001       -0.000002        0.000002             0.999998             1.000002 0.000000  0.225411 0.821659  0.283387
+avg_days_between_orders -0.017122   0.983024  0.002881       -0.022769       -0.011474             0.977488             0.988591 0.000000 -5.942225 0.000000 28.405866
+login_count             -0.231643   0.793230  0.031552       -0.293484       -0.169802             0.745661             0.843832 0.000000 -7.341574 0.000000 42.107161
+cart_count              -0.098677   0.906035  0.118978       -0.331870        0.134515             0.717581             1.143982 0.000000 -0.829373 0.406893  1.297278
+avg_cart_per_login      -0.549286   0.577362  0.789062       -2.095819        0.997247             0.122969             2.710808 0.000000 -0.696126 0.486350  1.039933
+category_diversity      -0.151170   0.859702  0.095976       -0.339278        0.036939             0.712284             1.037629 0.000000 -1.575088 0.115236  3.117336
+age                     -0.007902   0.992129  0.007228       -0.022069        0.006265             0.978173             1.006285 0.000000 -1.093200 0.274306  1.866142
+gender_MALE              0.401948   1.494734  0.225379       -0.039786        0.843682             0.960995             2.324912 0.000000  1.783435 0.074516  3.746316
+used_coupon              0.316739   1.372644  0.218449       -0.111413        0.744891             0.894569             2.106213 0.000000  1.449945 0.147074  2.765388
+
+Interpretation tips:
+- exp(coef) > 1 implies higher hazard (faster churn). < 1 implies protective.
+- Validate proportional hazards via residuals (not included here for brevity).
+- Consider time-varying covariates for more robust analysis.
+
+======================================================================
+SAVED CHARTS
+======================================================================
+- cox_hazard_ratios.png
+- logreg_coefficients.png
+- logreg_confusion_matrix_thr0.5.png
+- logreg_confusion_matrix_tuned.png
+- logreg_pr.png
+- logreg_roc.png
+- metrics_vs_threshold.png
+- pr_with_best_thresholds.png
+- rf_feature_importance.png
+- roc_with_best_thresholds.png
