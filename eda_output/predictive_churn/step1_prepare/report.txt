@@ -7,21 +7,53 @@ Train ref: 2025-02-12 19:16:11 | Test ref: 2025-05-13 19:16:11
 Churn horizon (days): 90
 
 ======================================================================
-TRAIN SHAPE & CHURN RATE
+TRAIN – SHAPE & LABEL
 ======================================================================
-(10000, 16)
-Train churn rate (90d): 0.2637
+Full   : (10000, 17) | churn_90d=0.2637
+Cohort : (2835, 17) | churn_90d=0.2614
+Cohort share: 28.35% of train
+-              order_count | full median=3.00 | cohort median=3.00
+-              login_count | full median=7.00 | cohort median=7.00
+-  avg_days_between_orders | full median=37.33 | cohort median=38.80
+-              total_spend | full median=1639500.00 | cohort median=1583300.00
+-                      age | full median=41.00 | cohort median=29.00
 
 ======================================================================
-TEST SHAPE & CHURN RATE
+TEST – SHAPE & LABEL
 ======================================================================
-(10000, 16)
-Test churn rate (90d): 0.2524
+Full   : (10000, 17) | churn_90d=0.2524
+Cohort : (2835, 17) | churn_90d=0.2444
+Cohort share: 28.35% of test
+-              order_count | full median=6.00 | cohort median=6.00
+-              login_count | full median=11.00 | cohort median=11.00
+-  avg_days_between_orders | full median=33.12 | cohort median=34.50
+-              total_spend | full median=3305800.00 | cohort median=3280900.00
+-                      age | full median=41.00 | cohort median=29.00
+
+======================================================================
+FILES
+======================================================================
+- train_full.csv
+- train_cohort.csv
+- test_full.csv
+- test_cohort.csv
 
 ======================================================================
 SAVED CHARTS
 ======================================================================
-- train_hist_age.png
-- train_hist_avg_gap.png
-- train_hist_login_count.png
-- train_hist_order_count.png
+- test_cohort_hist_age.png
+- test_cohort_hist_avg_days_between_orders.png
+- test_cohort_hist_login_count.png
+- test_cohort_hist_order_count.png
+- test_full_hist_age.png
+- test_full_hist_avg_days_between_orders.png
+- test_full_hist_login_count.png
+- test_full_hist_order_count.png
+- train_cohort_hist_age.png
+- train_cohort_hist_avg_days_between_orders.png
+- train_cohort_hist_login_count.png
+- train_cohort_hist_order_count.png
+- train_full_hist_age.png
+- train_full_hist_avg_days_between_orders.png
+- train_full_hist_login_count.png
+- train_full_hist_order_count.png
