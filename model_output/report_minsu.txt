@@ -1,0 +1,51 @@
+모델 성능 분석 및 해석
+1. 전반적 성능 비교
+-LightGBM (LGBM)
+ROC-AUC: 0.984로 세 모델 중 가장 우수
+Accuracy: 0.932, F1-score: 0.903
+Brier Score: 0.054 → 확률 예측 정확도 매우 높음
+전반적으로 재현율과 특이도의 균형이 잘 맞음
+
+-Random Forest (RF)
+ROC-AUC: 0.975, Accuracy: 0.916
+F1-score: 0.884, Brier Score: 0.060
+재현율(Recall) 0.941로 이탈 고객 탐지 성능이 뛰어남
+다만 예측 이탈률이 실제보다 약간 높게 산출 (+4.4pp)
+
+-Logistic Regression
+ROC-AUC: 0.945
+Accuracy: 0.832, F1-score: 0.784
+Brier Score: 0.102 → 확률 예측이 상대적으로 부정확
+단순 해석 가능성은 높으나 성능 측면에서 뒤처짐
+
+2. Feature Importance 분석
+-LGBM: days_since_last_session, monetary_avg_order, tenure_days가 가장 영향력 큼
+→ 최근 접속일, 평균 주문 금액, 가입 기간이 churn에 강력한 관련성
+
+-RF: recency_score, days_since_last_session, tenure_days 순으로 중요
+→ 고객 활동 신선도가 핵심 지표
+
+공통적으로 최근 활동성, 고객 가치 지표가 상위권
+
+3. ROC & PR Curve 분석
+-LGBM의 ROC Curve가 가장 이상적인 형태 → 거의 완벽에 가까운 분류 가능
+-PR Curve에서도 LGBM이 높은 Precision 유지 → 특히 낮은 Recall 구간에서 Precision 1.0에 가까움
+-RF 역시 높은 성능이지만, PR 곡선에서 약간의 하락 구간 존재
+-Logistic은 고성능 대비 PR 곡선에서 Precision 유지력이 떨어짐
+
+4. Calibration (Reliability) 분석
+Brier Score 기준: LGBM (0.054) < RF (0.060) < Logistic (0.102)
+→ LGBM이 확률 예측이 가장 잘 보정됨
+
+Logistic은 낮은 구간에서 예측이 과대/과소 편향되어 Calibration 필요
+RF와 LGBM은 전반적으로 예측확률과 실제 관측 확률이 유사
+
+5. Threshold(임계값) 조정 인사이트
+LGBM: MCC 최대 및 Accuracy 최대가 thr ≈ 0.32
+→ 기본 0.5 대신 0.32 사용 시 재현율과 특이도 모두 개선 가능
+
+RF: 최적 임계값이 0.41 → 이탈 고객 탐지 극대화 (Recall=1.0 가능)
+
+Logistic: Balanced Accuracy, MCC, Accuracy 모두 0.67에서 최적
+→ 임계값 조정 시 False Positive 크게 감소 가능
+
