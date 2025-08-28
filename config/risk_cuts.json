@@ -1,0 +1,11 @@
+{
+  "order": "desc",
+  "include_boundary": "right",
+  "note": "Uniform cutpoints for churn_probability_raw; >= inclusive to the higher band.",
+  "cuts": {
+    "VH": 0.90,
+    "H": 0.75,
+    "M": 0.50,
+    "L": 0.00
+  }
+}

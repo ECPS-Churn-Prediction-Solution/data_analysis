@@ -1,0 +1,91 @@
+# =====================================================================
+# Mapping from prediction output file -> analytics.prediction_user_churn
+# Also documents dtype expectations (post-ETL), and upsert policy notes.
+# =====================================================================
+
+table: analytics.prediction_user_churn
+pk: [user_id, scored_at, model_version, churn_horizon_days]
+
+required_columns:
+  user_id:                {db: user_id,                dtype: int64}
+  scored_at:              {db: scored_at,              dtype: timestamptz, tz: UTC}
+  model_name:             {db: model_name,             dtype: string, enum: [lgbm]}
+  model_version:          {db: model_version,          dtype: string}
+  feature_version:        {db: feature_version,        dtype: string}
+  data_cutoff_at:         {db: data_cutoff_at,         dtype: timestamptz, tz: UTC}
+  reference_dt:           {db: reference_dt,           dtype: timestamptz, tz: UTC}
+  churn_horizon_days:     {db: churn_horizon_days,     dtype: int32, default: 90}
+  churn_threshold_dt:     {db: churn_threshold_dt,     dtype: timestamptz, tz: UTC}
+  churn_probability_raw:  {db: churn_probability_raw,  dtype: float64, range: [0.0, 1.0]}
+  risk_band:              {db: risk_band,              dtype: string, enum: [VH, H, M, L]}
+  score_percentile:       {db: score_percentile,       dtype: float64, range: [0.0, 100.0]}
+  imputations_count:      {db: imputations_count,      dtype: int32, default: 0}
+  anomalies_count:        {db: anomalies_count,        dtype: int32, default: 0}
+  pipeline_run_id:        {db: pipeline_run_id,        dtype: string}
+  valid_from:             {db: valid_from,             dtype: timestamptz, tz: UTC}
+  valid_until:            {db: valid_until,            dtype: timestamptz, tz: UTC}
+
+optional_columns:
+  top1_feature:           {db: top1_feature,           dtype: string}
+  top1_shap:              {db: top1_shap,              dtype: float64}
+  top2_feature:           {db: top2_feature,           dtype: string}
+  top2_shap:              {db: top2_shap,              dtype: float64}
+  top3_feature:           {db: top3_feature,           dtype: string}
+  top3_shap:              {db: top3_shap,              dtype: float64}
+
+  order_count:            {db: order_count,            dtype: int32}
+  total_spend:            {db: total_spend,            dtype: int64}
+  avg_order_value:        {db: avg_order_value,        dtype: float64}
+  avg_days_between_orders:{db: avg_days_between_orders,dtype: float64}
+  login_count:            {db: login_count,            dtype: int32}
+  cart_count:             {db: cart_count,             dtype: int32}
+  recency_days:           {db: recency_days,           dtype: int32}
+  rfm_sum:                {db: rfm_sum,                dtype: int32}
+  age:                    {db: age,                    dtype: int32}
+  gender:                 {db: gender,                 dtype: string, enum: [MALE, FEMALE]}
+  age_group:              {db: age_group,              dtype: string, enum: ["<25","25-34","35-44","45+"]}
+  used_coupon:            {db: used_coupon,            dtype: bool}
+  avg_cart_per_login:     {db: avg_cart_per_login,     dtype: float64}
+  category_diversity:     {db: category_diversity,     dtype: float64}
+  rfm_bucket:             {db: rfm_bucket,             dtype: string}
+  kmeans_cluster:         {db: kmeans_cluster,         dtype: string}
+  action_code_suggested:  {db: action_code_suggested,  dtype: string}
+
+upsert_policy:
+  conflict_target: [user_id, scored_at, model_version, churn_horizon_days]
+  overwrite:
+    - churn_probability_raw
+    - risk_band
+    - score_percentile
+    - top1_feature
+    - top1_shap
+    - top2_feature
+    - top2_shap
+    - top3_feature
+    - top3_shap
+    - order_count
+    - total_spend
+    - avg_order_value
+    - avg_days_between_orders
+    - login_count
+    - cart_count
+    - recency_days
+    - rfm_sum
+    - age
+    - gender
+    - age_group
+    - used_coupon
+    - avg_cart_per_login
+    - category_diversity
+    - rfm_bucket
+    - kmeans_cluster
+    - action_code_suggested
+    - imputations_count
+    - anomalies_count
+    - pipeline_run_id
+    - valid_from
+    - valid_until
+  preserve:
+    - data_cutoff_at
+    - reference_dt
+    - churn_threshold_dt

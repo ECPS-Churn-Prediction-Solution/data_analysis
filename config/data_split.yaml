@@ -1,0 +1,25 @@
+# =====================================================================
+# Time-based split for training/validation/testing
+# The pipeline should compute max_date from raw data and then:
+#   train_ref = max_date - train_ref_offset_days
+#   valid_ref = max_date - valid_ref_offset_days   # optional (if used)
+#   test_ref  = max_date - test_ref_offset_days
+# Labels are built using horizon_days forward from each ref.
+# =====================================================================
+
+mode: time_based
+timezone: UTC
+seed: 2025
+
+horizon_days: 90
+
+# Offsets relative to max_date observed in input data
+train_ref_offset_days: 180
+valid_ref_offset_days: 999999   # disable explicit valid (use CV or train/valid split inside training)
+test_ref_offset_days: 90
+
+# Optional: within-training random split if you still want holdout from train window
+internal_validation:
+  enabled: true
+  method: stratified_random
+  valid_ratio: 0.25
