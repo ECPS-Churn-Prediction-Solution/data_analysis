@@ -20,7 +20,7 @@ Brier Score: 0.102 → 확률 예측이 상대적으로 부정확
 
 2. Feature Importance 분석
 -LGBM: days_since_last_session, monetary_avg_order, tenure_days가 가장 영향력 큼
-→ 최근 접속일, 평균 주문 금액, 가입 기간이 churn에 강력한 관련성
+→ 최근 접속일, 평균 주문 금액, 가입 기간이 churn에 강력한 관 련성
 
 -RF: recency_score, days_since_last_session, tenure_days 순으로 중요
 → 고객 활동 신선도가 핵심 지표
