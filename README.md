@@ -6,10 +6,10 @@ ecps-churn/
 │ ├─ model.yaml # LGBM 하이퍼파라미터✅
 │ ├─ features.yaml # S3 피처 스키마(컬럼명/타입/스케일 규칙)✅
 │ ├─ mapping.yaml # "피처명 → DB 컬럼" 매핑 규칙✅
-│ └─ scoring_policy.seed.yaml # 초기 컷포인트(seed) 또는 샘플
+│ └─ scoring_policy.seed.yaml # 초기 컷포인트(seed) 또는 샘플✅
 ├─ src/
 │ ├─ common/
-│ │ ├─ log.py # 로깅 통일
+│ │ ├─ log.py # 로깅 통일✅
 │ │ ├─ io.py # S3/로컬 읽기쓰기(파케/CSV 자동)✅
 │ │ └─ settings.py # .env + 환경변수 로드 (DB/S3 경로 등)✅
 │ ├─ features/
@@ -21,7 +21,7 @@ ecps-churn/
 │ │ ├─ shap_utils.py # SHAP Top3 추출 유틸
 │ │ └─ registry.py # 모델 save/load (S3 키 규약, 버전 문자열)✅
 │ ├─ pipelines/
-│ │ ├─ batch_train.py # (1) S3→DF 로드 → (2) 학습 → (3) 모델/정책 업데이트
+│ │ ├─ batch_train.py # (1) S3→DF 로드 → (2) 학습 → (3) 모델/정책 업데이트✅
 │ │ └─ batch_score.py # (1) S3 당일 피처 → (2) 추론 → (3) DB 적재
 │ ├─ db/
 │ │ ├─ writer.py # ← 이전에 준 적재 코드(UPSERT/current 종료 포함)
@@ -36,7 +36,7 @@ ecps-churn/
 │ ├─ writer.Dockerfile # Lambda(ECR)로 DB writer 실행할 때
 │ └─ runtime-requirements.txt
 ├─ scripts/
-│ ├─ run_train_local.sh # 로컬 학습 실행(윈도우면 .ps1로 추가)
+│ ├─ run_train_local.sh # 로컬 학습 실행(윈도우면 .ps1로 추가)✅
 │ ├─ run_score_local.sh # 로컬 스코어링 실행✅
 │ └─ upload_model.sh # S3로 모델/설정 업로드
 └─ notebooks/ # 선택(EDA/SHAP 확인 등)
