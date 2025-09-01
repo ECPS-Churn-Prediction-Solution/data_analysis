@@ -1,0 +1,16 @@
+# lgbm 컷포인트 시드 (최초 1회 주입용)
+model_name: lgbm
+model_version: lgbm_v1.0_shaTODO # TODO(추후 수정)
+feature_version: feat_v1.0 # TODO(추후 수정)
+effective_from: now # "now" 그대로 두면 파서가 NOW()로 처리
+policies:
+  - churn_horizon_days: 90
+    threshold_default: 0.50
+    cutpoint_vh: 0.80
+    cutpoint_h: 0.60
+    cutpoint_m: 0.40
+  - churn_horizon_days: 30
+    threshold_default: 0.50
+    cutpoint_vh: 0.75
+    cutpoint_h: 0.55
+    cutpoint_m: 0.35
