@@ -1,135 +1,21 @@
-# =====================================================================
-# Features schema & validation rules for training/inference pipelines
-# NOTE
-#  - id/meta columns are not used as model inputs unless explicitly listed.
-#  - All numeric features MUST be finite; replace inf with NaN then impute.
-# =====================================================================
-
-version: "fe_spec_1"
-timezone: "UTC"
-
-id_columns:
-  - user_id
-
-meta_columns:
-  - asof_date           # optional snapshot ref date if present
-
-numeric_features:
-  - name: age
-    dtype: int
-    nullable: false
-    min: 15
-    max: 100
-    impute: 0
-
-  - name: tenure_days
-    dtype: int
-    nullable: false
-    min: 0
-    max: 36500
-    impute: 0
-
-  - name: num_interests
-    dtype: int
-    nullable: false
-    min: 0
-    max: 1000
-    impute: 0
-
-  # RFM scores (1..5)
-  - name: recency_score
-    dtype: int
-    nullable: false
-    allowed: [1,2,3,4,5]
-    impute: 3
-
-  - name: frequency_score
-    dtype: int
-    nullable: false
-    allowed: [1,2,3,4,5]
-    impute: 3
-
-  - name: monetary_score
-    dtype: int
-    nullable: false
-    allowed: [1,2,3,4,5]
-    impute: 3
-
-  # Purchasing behavior
-  - name: monetary_avg_order
-    dtype: float
-    nullable: false
-    min: 0.0
-    max: 1.0e9
-    impute: 0.0
-
-  - name: avg_items_per_order
-    dtype: float
-    nullable: false
-    min: 0.0
-    max: 100.0
-    impute: 0.0
-
-  - name: frequency_last_30d
-    dtype: int
-    nullable: false
-    min: 0
-    max: 10000
-    impute: 0
-
-  - name: frequency_last_90d
-    dtype: int
-    nullable: false
-    min: 0
-    max: 10000
-    impute: 0
-
-  - name: days_between_orders
-    dtype: float
-    nullable: true
-    min: 0.0
-    max: 3650.0
-    impute_strategy: median
-
-  - name: coupon_usage_rate
-    dtype: float
-    nullable: false
-    min: 0.0
-    max: 1.0
-    impute: 0.0
-
-  - name: days_since_last_session
-    dtype: int
-    nullable: false
-    min: 0
-    max: 365000
-    impute: 999999
-
-  - name: cart_additions_last_30d
-    dtype: int
-    nullable: false
-    min: 0
-    max: 100000
-    impute: 0
-
-categorical_features:
-  - name: gender
-    dtype: category
-    categories: [MALE, FEMALE]   # must comply with DB constraint
-    encoding: binary             # MALE=1, FEMALE=0 (documented in code)
-    impute: FEMALE
-
-derived_features:
-  # Optional examples (not strictly required for current training code)
-  - name: age_group
-    from: age
-    dtype: category
-    categories: ["<25","25-34","35-44","45+"]
-    rule: "bin_by_edges([0,24,34,44,200])"
-    encoding: onehot
-    nullable: true
-
-validators:
-  require_finite: true
-  clip_numeric_to_range: true
-  fail_on_unknown_category: true
+# S3 피처 파일에 반드시 들어있는 컬럼
+required:
+  - user_id: int64
+  - age: int16
+  - gender: category # {MALE,FEMALE} 외 값은 null 처리
+  - tenure_days: int32
+  - recency_score: int8
+  - frequency_score: int8
+  - monetary_score: int8
+  - monetary_avg_order: float32
+  - avg_items_per_order: float32
+  - frequency_last_30d: int16
+  - frequency_last_90d: int16
+  - days_between_orders: float32
+  - coupon_usage_rate: float32 # 0~1
+  - days_since_last_session: int16
+  - cart_additions_last_30d: int16
+optional:
+  - num_interests: int16
+target:
+  - churn: int8 # (학습 시만 사용, 추론시 없음 가능)

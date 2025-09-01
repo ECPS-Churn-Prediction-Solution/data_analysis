@@ -1,0 +1,19 @@
+# S3 피처명 → analytics.prediction_user_churn 컬럼
+direct:
+  age: age
+  gender: gender
+  days_since_last_session: recency_days # 이름만 다르고 의미 동일
+  monetary_avg_order: avg_order_value
+  days_between_orders: avg_days_between_orders
+  # 이미 DB에 있는 패스스루
+  # (없는 항목은 prediction_logs.extra_meta로 로깅하거나 그냥 사용만)
+derived:
+  # 아래는 DB에 칼럼이 없으므로 대시보드에 필요하지 않으면 생략
+  # 필요하면 analytics.prediction_user_churn에 칼럼 추가 or prediction_logs.extra_meta에 기록
+  # - tenure_days
+  # - num_interests
+  # - recency_score, frequency_score, monetary_score
+  # - avg_items_per_order
+  # - frequency_last_30d, frequency_last_90d
+  # - coupon_usage_rate
+  # - cart_additions_last_30d
