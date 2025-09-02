@@ -6,6 +6,12 @@ Batch scoring orchestrator:
 - (3) Build rows and upsert to analytics.prediction_user_churn (SCD2)
 - (4) Update mart.daily_churn_prediction_aggr for the same dt
 
+Notes:
+- writer.upsert_prediction_user_churn() internally maps risk_band -> action_code
+  using analytics.action_recommendations and snapshots it into action_code_suggested.
+- This script now pins reference_dt/data_cutoff_at to the given dt (UTC midnight)
+  so mart aggregation aligns with the same date.
+
 CLI:
   python -m src.pipelines.batch_score --dt 2025-09-01 --horizon 90
 
@@ -19,7 +25,7 @@ Exit codes:
 from __future__ import annotations
 import argparse
 import os
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 
 import psycopg2
 
@@ -30,6 +36,7 @@ from ..db.seed_policy import ensure_scoring_policy
 from ..common.settings import CFG
 
 
+# -------- DB helpers --------
 def _connect_db():
     dsn = os.getenv("PG_DSN")
     if dsn:
@@ -54,6 +61,33 @@ def _parse_dt(s: str | None) -> str:
     return s
 
 
+def _utc_midnight(dt_str: str) -> datetime:
+    # reference_dt/data_cutoff_at을 파티션 날짜의 UTC 00:00으로 고정
+    return datetime.fromisoformat(dt_str + "T00:00:00").replace(tzinfo=timezone.utc)
+
+
+def _ensure_actions_and_log(conn) -> None:
+    """Pre-flight: 활성 액션이 밴드별로 있는지 확인하고 로그만 남김.
+    매핑 자체는 writer.upsert_prediction_user_churn()에서 수행됨."""
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT risk_band, action_code
+            FROM analytics.action_recommendations
+            WHERE is_active = true
+              AND effective_until = 'infinity'::timestamptz
+            """
+        )
+        rows = cur.fetchall()
+        m = {rb: ac for rb, ac in rows}
+        missing = [b for b in ("VH", "H", "M", "L") if b not in m]
+        print(f"[batch_score] active actions: {m or '(none)'}")
+        if missing:
+            print(f"[batch_score][WARN] missing active actions for bands: {missing}. "
+                  f"writer will store NULL for action_code_suggested on those bands.")
+
+
+# -------- main --------
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--dt", default=None, help="Partition date (YYYY-MM-DD or YYYYMMDD)")
@@ -61,6 +95,7 @@ def main():
                     help="Churn horizon days (e.g., 30/60/90)")
     ap.add_argument("--model_name", default=os.getenv("MODEL_NAME", "lgbm"))
     ap.add_argument("--pipeline_run_id", default=os.getenv("PIPELINE_RUN_ID"))
+    ap.add_argument("--skip_mart", action="store_true", help="Skip mart aggregation step")
     args = ap.parse_args()
 
     dt = _parse_dt(args.dt)
@@ -81,8 +116,11 @@ def main():
             feature_version=CFG.FEATURE_VERSION,
             churn_horizon_days=horizon,
         )
+        # 액션 존재 사전 점검(매핑은 writer에서 처리)
+        _ensure_actions_and_log(conn)
 
-    # (3) Build output rows
+    # (3) Build output rows (reference_dt/data_cutoff_at = dt 자정 UTC 고정)
+    ref_dt = _utc_midnight(dt)
     out = build_rows_from_predictions(
         df,
         proba,
@@ -93,6 +131,8 @@ def main():
         churn_horizon_days=horizon,
         model_name=args.model_name,
         pipeline_run_id=args.pipeline_run_id,
+        reference_dt=ref_dt,
+        data_cutoff_at=ref_dt,
     )
 
     # (4) Upsert analytics and update mart
@@ -105,18 +145,19 @@ def main():
             feature_version=CFG.FEATURE_VERSION,
             churn_horizon_days=horizon,
         )
-        update_mart_daily_aggregates(
-            conn,
-            ref_date=dt,
-            model_version=CFG.MODEL_VERSION,
-            feature_version=CFG.FEATURE_VERSION,
-            horizons=[horizon],  # pass multiple if you compute multiple horizons same day
-        )
+        if not args.skip_mart:
+            update_mart_daily_aggregates(
+                conn,
+                ref_date=dt,
+                model_version=CFG.MODEL_VERSION,
+                feature_version=CFG.FEATURE_VERSION,
+                horizons=[horizon],  # pass multiple if you compute multiple horizons same day
+            )
         conn.commit()
 
     print(
         f"[batch_score] dt={dt} wrote {len(out)} rows to analytics.prediction_user_churn "
-        f"and refreshed mart.daily_churn_prediction_aggr."
+        f"{'(mart skipped)' if args.skip_mart else 'and refreshed mart.daily_churn_prediction_aggr.'}"
     )
     return 0
 
