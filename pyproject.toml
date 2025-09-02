@@ -1,0 +1,8 @@
+# ...existing content...
+
+[project]
+# 기존 의존성(예: lightgbm, shap, pandas, boto3, psycopg2-binary, pyarrow 등) + 아래 추가
+dependencies = [
+  # ... your existing deps ...
+  "pyyaml>=6.0"
+]
