@@ -13,7 +13,7 @@ Notes:
   so mart aggregation aligns with the same date.
 
 CLI:
-  python -m src.pipelines.batch_score --dt 2025-09-01 --horizon 90
+  python -m src.pipelines.batch_score --dt 2025-09-01 --horizon 30
 
 Env:
   PG_DSN or (PG_HOST, PG_DB, PG_USER, PG_PASSWORD[, PG_PORT])
@@ -91,7 +91,7 @@ def _ensure_actions_and_log(conn) -> None:
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--dt", default=None, help="Partition date (YYYY-MM-DD or YYYYMMDD)")
-    ap.add_argument("--horizon", type=int, default=int(os.getenv("CHURN_HORIZON_DAYS", 90)),
+    ap.add_argument("--horizon", type=int, default=int(os.getenv("CHURN_HORIZON_DAYS", 30)),
                     help="Churn horizon days (e.g., 30/60/90)")
     ap.add_argument("--model_name", default=os.getenv("MODEL_NAME", "lgbm"))
     ap.add_argument("--pipeline_run_id", default=os.getenv("PIPELINE_RUN_ID"))

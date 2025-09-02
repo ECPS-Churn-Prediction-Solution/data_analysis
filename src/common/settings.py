@@ -41,7 +41,7 @@ class _Config:
     # ===== 모델/피처 버전 =====
     MODEL_VERSION: str = os.getenv("MODEL_VERSION", "lgbm_v1.0_shaTODO")  # TODO(추후 수정)
     FEATURE_VERSION: str = os.getenv("FEATURE_VERSION", "feat_v1.0")      # TODO(추후 수정)
-    HORIZON_DAYS: int = int(os.getenv("HORIZON_DAYS", "90"))
+    HORIZON_DAYS: int = int(os.getenv("HORIZON_DAYS", "30"))
 
     # ===== DB (적재용) =====
     PGHOST: str = os.getenv("PGHOST", "localhost")          # TODO(추후 수정)

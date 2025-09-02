@@ -62,7 +62,7 @@ def build_rows_from_predictions(
     *,
     model_version: str,
     feature_version: str,
-    churn_horizon_days: int = 90,
+    churn_horizon_days: int = 30,
     model_name: str = "lgbm",
     pipeline_run_id: Optional[str] = None,
     reference_dt: Optional[datetime] = None,

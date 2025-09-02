@@ -8,7 +8,7 @@ YAML format accepted (single mapping or list):
   - model_name: lgbm
     model_version: lgbm_v1
     feature_version: f_v1
-    churn_horizon_days: 90
+    churn_horizon_days: 30
     threshold_default: 0.5
     cutpoint_vh: 0.8
     cutpoint_h: 0.6
