@@ -22,13 +22,14 @@ ecps-churn/
 │ │ └─ registry.py # 모델 save/load (S3 키 규약, 버전 문자열)✅
 │ ├─ pipelines/
 │ │ ├─ batch_train.py # (1) S3→DF 로드 → (2) 학습 → (3) 모델/정책 업데이트✅
-│ │ └─ batch_score.py # (1) S3 당일 피처 → (2) 추론 → (3) DB 적재
+│ │ └─ batch_score.py # (1) S3 당일 피처 → (2) 추론 → (3) DB 적재✅
 │ ├─ db/
-│ │ ├─ writer.py # ← 이전에 준 적재 코드(UPSERT/current 종료 포함)
-│ │ ├─ mapping.py # mapping.yaml 적용해 DF 컬럼명/스케일 정규화
+│ │ ├─ writer.py # ← 이전에 준 적재 코드(UPSERT/current 종료 포함)✅
+│ │ ├─ mapping.py # mapping.yaml 적용해 DF 컬럼명/스케일 정규화✅
 │ │ └─ migrations/
 │ │ ├─ 0001_base.sql # 최초 DDL(이미 배포됐으면 비워도 됨)
 │ │ └─ 0002_fix_types.sql # 예: total_spend numeric(12,2) 등
+│ │ └─ 0003_perf_indexes.sql # 예: 조회/성능 인덱스
 │ └─ utils/
 │ ├─ date.py # dt 파티션/컷오프 계산
 │ └─ df.py # 퍼센타일/클리핑/누락치 처리
