@@ -5,19 +5,22 @@ Batch scoring orchestrator:
 - (2) Predict (proba, optional SHAP)
 - (3) Build rows and upsert to analytics.prediction_user_churn (SCD2)
 - (4) Update mart.daily_churn_prediction_aggr for the same dt
+- (5) (optional) Export raw predictions to S3/parquet
 
 Notes:
 - writer.upsert_prediction_user_churn() internally maps risk_band -> action_code
   using analytics.action_recommendations and snapshots it into action_code_suggested.
-- This script now pins reference_dt/data_cutoff_at to the given dt (UTC midnight)
+- This script pins reference_dt/data_cutoff_at to the given dt (UTC midnight)
   so mart aggregation aligns with the same date.
 
 CLI:
-  python -m src.pipelines.batch_score --dt 2025-09-01 --horizon 30
+  python -m src.pipelines.batch_score --dt 2025-09-01 --horizon 30 \
+    [--write_s3] [--skip_mart]
 
 Env:
   PG_DSN or (PG_HOST, PG_DB, PG_USER, PG_PASSWORD[, PG_PORT])
   MODEL_VERSION / FEATURE_VERSION come from CFG
+  WRITE_PREDICTIONS_TO_S3=1 to enable S3 export by default
 
 Exit codes:
   0: success (even if no features found)
@@ -34,6 +37,12 @@ from ..db.writer import build_rows_from_predictions, upsert_prediction_user_chur
 from ..db.mart_writer import update_mart_daily_aggregates
 from ..db.seed_policy import ensure_scoring_policy
 from ..common.settings import CFG
+
+# (NEW) optional S3 export
+try:
+    from .prediction_export import export_predictions_to_s3
+except Exception:  # pragma: no cover
+    export_predictions_to_s3 = None  # type: ignore
 
 
 # -------- DB helpers --------
@@ -83,19 +92,34 @@ def _ensure_actions_and_log(conn) -> None:
         missing = [b for b in ("VH", "H", "M", "L") if b not in m]
         print(f"[batch_score] active actions: {m or '(none)'}")
         if missing:
-            print(f"[batch_score][WARN] missing active actions for bands: {missing}. "
-                  f"writer will store NULL for action_code_suggested on those bands.")
+            print(
+                f"[batch_score][WARN] missing active actions for bands: {missing}. "
+                f"writer will store NULL for action_code_suggested on those bands."
+            )
 
 
 # -------- main --------
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--dt", default=None, help="Partition date (YYYY-MM-DD or YYYYMMDD)")
-    ap.add_argument("--horizon", type=int, default=int(os.getenv("CHURN_HORIZON_DAYS", 30)),
-                    help="Churn horizon days (e.g., 30/60/90)")
+    ap.add_argument(
+        "--horizon",
+        type=int,
+        default=int(os.getenv("CHURN_HORIZON_DAYS", 30)),
+        help="Churn horizon days (e.g., 30/60/90)",
+    )
     ap.add_argument("--model_name", default=os.getenv("MODEL_NAME", "lgbm"))
     ap.add_argument("--pipeline_run_id", default=os.getenv("PIPELINE_RUN_ID"))
     ap.add_argument("--skip_mart", action="store_true", help="Skip mart aggregation step")
+
+    # (NEW) also write raw predictions to S3 parquet
+    ap.add_argument(
+        "--write_s3",
+        action="store_true",
+        default=os.getenv("WRITE_PREDICTIONS_TO_S3", "0") not in {"0", "false", "False"},
+        help="Also export raw predictions to S3 (parquet) under S3_PREDICTION_PREFIX.",
+    )
+
     args = ap.parse_args()
 
     dt = _parse_dt(args.dt)
@@ -134,6 +158,19 @@ def main():
         reference_dt=ref_dt,
         data_cutoff_at=ref_dt,
     )
+
+    # (3.5) (NEW) Export raw predictions to S3 if requested
+    if args.write_s3:
+        if export_predictions_to_s3 is None:
+            print("[batch_score][WARN] export_predictions_to_s3 not available; skipping S3 export.")
+        else:
+            try:
+                uri = export_predictions_to_s3(
+                    out, dt=dt, model_name=args.model_name, horizon=horizon
+                )
+                print(f"[batch_score] exported raw predictions to {uri}")
+            except Exception as e:  # pragma: no cover
+                print(f"[batch_score][WARN] failed to export predictions to S3: {e!r}")
 
     # (4) Upsert analytics and update mart
     with _connect_db() as conn:

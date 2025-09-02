@@ -30,8 +30,13 @@ class _Config:
     # TODO(추후 수정): 기능 확정 시 프리픽스/파티션 포맷 조정
     S3_FEATURE_PREFIX: str = os.getenv("S3_FEATURE_PREFIX", "features/")                 # 예: features/
     S3_FEATURE_PARTITION_FMT: str = os.getenv("S3_FEATURE_PARTITION_FMT", "dt=%Y-%m-%d") # 예: dt=YYYY-MM-DD
-    S3_MODEL_PREFIX: str = os.getenv("S3_MODEL_PREFIX", "models/lgbm/")                  # 예: models/lgbm/
-    S3_PREDICTION_PREFIX: str = os.getenv("S3_PREDICTION_PREFIX", "predictions/")        # 예: predictions/
+    S3_MODEL_PREFIX = os.getenv("S3_MODEL_PREFIX", "models/lgbm/")
+    # 모델 전용 버킷: 지정 없으면 S3_BUCKET을 재사용
+    S3_MODEL_BUCKET = os.getenv("S3_MODEL_BUCKET", S3_BUCKET)
+
+    S3_PREDICTION_PREFIX: str = os.getenv("S3_PREDICTION_PREFIX", "predictions/")
+    # 예측 결과 전용 버킷: 지정 없으면 S3_BUCKET 재사용
+    S3_PREDICTION_BUCKET: str = os.getenv("S3_PREDICTION_BUCKET", os.getenv("S3_BUCKET"))
 
     # 선택: 서버사이드 암호화
     S3_SSE: Optional[str] = os.getenv("S3_SSE")              # '', 'AES256', 'aws:kms'

@@ -98,17 +98,13 @@ def read_csv_s3(prefix: str, *, encoding: str = "utf-8", **read_csv_kwargs) -> p
         return pd.DataFrame()
     return pd.concat(frames, ignore_index=True)
 
-def write_json_s3(key: str, obj) -> None:
-    """임의 JSON을 S3에 기록."""
-    import json
-    s3 = CFG.s3_client()
-    body = json.dumps(obj, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
-    s3.put_object(Bucket=CFG.S3_BUCKET, Key=key, Body=body, **_put_opts())
+def write_json_s3(key: str, obj: dict, *, bucket: str | None = None, extra: dict | None = None) -> None:
+    data = json.dumps(obj).encode("utf-8")
+    write_bytes_s3(key, data, bucket=bucket, extra=extra)
 
-def write_bytes_s3(key: str, body: bytes) -> None:
-    """바이너리 바디를 그대로 S3에 기록."""
+def write_bytes_s3(key: str, data: bytes, *, bucket: str | None = None, extra: dict | None = None) -> None:
     s3 = CFG.s3_client()
-    s3.put_object(Bucket=CFG.S3_BUCKET, Key=key, Body=body, **_put_opts())
+    s3.put_object(Bucket=(bucket or CFG.S3_BUCKET), Key=key, Body=data, **(extra or {}))
 
 def write_parquet_s3(key: str, df: pd.DataFrame) -> None:
     """DataFrame을 Parquet로 직렬화해 S3에 업로드."""
