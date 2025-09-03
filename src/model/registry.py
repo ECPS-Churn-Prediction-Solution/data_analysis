@@ -9,28 +9,26 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timezone
-from typing import Dict, Any, Tuple, Optional
+from typing import Dict, Any, Tuple, Optional, List
 
 import lightgbm as lgb
 from botocore.exceptions import ClientError
 
 from ..common.settings import CFG
-from ..common.io import s3_join
-
+from ..common.io import s3_join, write_json_s3, write_bytes_s3
 
 def _model_base_prefix() -> str:
     """
     모델 저장 베이스 prefix 생성.
-    예) models/lgbm/lgbm_v1.0_shaTODO/
+    예) models/lgbm/lgbm_v1.0_shaTODO
     """
     return s3_join(CFG.S3_MODEL_PREFIX, CFG.MODEL_VERSION)
-
 
 def save_model(
     model: lgb.Booster,
     *,
-    feature_names: Optional[list] = None,
-    categorical_features: Optional[list] = None,
+    feature_names: Optional[List[str]] = None,
+    categorical_features: Optional[List[str]] = None,
     extra_meta: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, str]:
     """
@@ -41,9 +39,9 @@ def save_model(
       s3://{CFG.S3_MODEL_BUCKET}/{CFG.S3_MODEL_PREFIX}/{MODEL_VERSION}/(model.txt, meta.json)
     """
     s3 = CFG.s3_client()
-    base = _model_base_prefix()           # 예: models/lgbm/lgbm_v1.0_shaTODO/
-    key_model = base + "model.txt"
-    key_meta  = base + "meta.json"
+    base = _model_base_prefix()
+    key_model = s3_join(base, "model.txt")
+    key_meta  = s3_join(base, "meta.json")
 
     # 공통 put 옵션 (SSE/KMS)
     put_opts: Dict[str, Any] = {}
@@ -88,7 +86,6 @@ def save_model(
         "meta":  f"s3://{CFG.S3_MODEL_BUCKET}/{key_meta}",
     }
 
-
 def load_model() -> Tuple[lgb.Booster, Dict[str, Any]]:
     """
     S3(모델 버킷)에서 Booster/메타를 로드.
@@ -97,8 +94,8 @@ def load_model() -> Tuple[lgb.Booster, Dict[str, Any]]:
     """
     s3 = CFG.s3_client()
     base = _model_base_prefix()
-    key_model = base + "model.txt"
-    key_meta  = base + "meta.json"
+    key_model = s3_join(base, "model.txt")
+    key_meta  = s3_join(base, "meta.json")
 
     req_opts: Dict[str, Any] = {}
     if getattr(CFG, "S3_REQUEST_PAYER", None):

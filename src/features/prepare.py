@@ -6,26 +6,26 @@ Parquet 피처셋 표준화:
 - 결측치 처리
 - 학습/예측 공용 prepare_features()
 """
+from __future__ import annotations
 
-from typing import Tuple, Optional
+from typing import Tuple, Optional, List, Dict
 import pandas as pd
 
 # ====== 컬럼 메타 ======
 ID_COL = "user_id"
 LABEL_COL = "churn"
-CAT_COLS = ["gender"]            # LightGBM categorical_feature
-EXCLUDE_COLS = [ID_COL, LABEL_COL]
+CAT_COLS: List[str] = ["gender"]            # LightGBM categorical_feature
+EXCLUDE_COLS: List[str] = [ID_COL, LABEL_COL]
 
-# 이미지가 잘려 보였던 케이스 등을 위한 alias 보정
-ALIAS = {
+# 들어오는 이름이 약간 다를 때 자동 매핑 (필요시 확장)
+ALIAS: Dict[str, str] = {
     "days_since_last_s": "days_since_last_order",
     "freq_last_30d": "frequency_last_30d",
     "freq_last_90d": "frequency_last_90d",
-    # 필요 시 추가
 }
 
 # 0~1 범위가 자연스러운 비율 컬럼 후보
-RATIO_COLS = [
+RATIO_COLS: List[str] = [
     "coupon_usage_rate",
 ]
 

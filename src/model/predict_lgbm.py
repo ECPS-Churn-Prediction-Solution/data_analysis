@@ -1,22 +1,20 @@
 # -*- coding: utf-8 -*-
 """
-S3에서 피처 로드 → 전처리(표준화) → 예측/SHAP 계산
-- 버킷: CFG.S3_BUCKET (또는 직접 URI 지정)
-- 프리픽스/파티션: CFG.S3_FEATURE_PREFIX + CFG.S3_FEATURE_PARTITION_FMT
-- 운영 안전성:
-  * 대용량 배치 추론/SHAP
-  * SHAP 토글/근사치 옵션(중앙설정 CFG 사용)
-  * meta.feature_names 기준 엄격 정렬 + 누락 컬럼 보정(카테고리는 'unknown')
+LightGBM 학습/예측 유틸
+- train_model(train_uri, valid_uri)
+- predict_uri(predict_uri)
+- predict_for_date(dt)  # features/<partition>에서 일자 파티션 읽기
 """
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Tuple
+from typing import List, Tuple, Optional, Dict
 
 import numpy as np
 import pandas as pd
+import lightgbm as lgb
 
-# SHAP은 선택적. 없으면 빈 배열 반환 → writer가 Top-K 스킵
+# SHAP은 선택적
 try:
     import shap  # type: ignore
     _HAS_SHAP = True
@@ -25,11 +23,13 @@ except Exception:
     _HAS_SHAP = False
 
 from ..common.settings import CFG
-from ..common.io import read_parquet_s3, s3_join
+from ..common.io import read_parquet_s3, read_features, s3_join
 from ..features.prepare import prepare_features
-from .registry import load_model
+from .registry import save_model, load_model
 
-
+# ----------------------------
+# Helpers
+# ----------------------------
 def _features_prefix_for_date(dt_str: str) -> str:
     """
     날짜 문자열(YYYY-MM-DD)로 파티션 경로 생성.
@@ -39,15 +39,17 @@ def _features_prefix_for_date(dt_str: str) -> str:
     part_fmt = CFG.S3_FEATURE_PARTITION_FMT
     try:
         dt = datetime.strptime(dt_str, "%Y-%m-%d")
-        part = dt.strftime(part_fmt) if any(ch in part_fmt for ch in ("%Y", "%m", "%d")) else part_fmt
+        if any(ch in part_fmt for ch in ("%Y", "%m", "%d")):
+            part = dt.strftime(part_fmt)
+        else:
+            part = part_fmt
     except Exception:
         # dt_str이 이미 파티션 문자열일 수도 있음
-        part = part_fmt.replace("%Y-%m-%d", dt_str)
-        if part == part_fmt:
-            # 포맷 치환 실패 시 fallback
+        if "%Y-%m-%d" in part_fmt:
+            part = part_fmt.replace("%Y-%m-%d", dt_str)
+        else:
             part = f"dt={dt_str}"
     return s3_join(CFG.S3_FEATURE_PREFIX, part)
-
 
 def _align_features(
     X: pd.DataFrame,
@@ -57,7 +59,7 @@ def _align_features(
     """
     - 학습 시점 feature_names 순서로 정렬
     - 누락 컬럼 보정:
-        * 범주형: 'unknown' 카테고리로 채움
+        * 범주형: 'unknown' 카테고리
         * 수치형: 0.0
     - 여분 컬럼은 드랍
     """
@@ -74,8 +76,7 @@ def _align_features(
     X = X.reindex(columns=feature_names)
     return X
 
-
-def _predict_in_batches(booster, X: pd.DataFrame, batch_size: int) -> np.ndarray:
+def _predict_in_batches(booster: lgb.Booster, X: pd.DataFrame, batch_size: int) -> np.ndarray:
     n = len(X)
     if n == 0:
         return np.array([], dtype=float)
@@ -88,8 +89,7 @@ def _predict_in_batches(booster, X: pd.DataFrame, batch_size: int) -> np.ndarray
         )
     return probs
 
-
-def _shap_in_batches(booster, X: pd.DataFrame, batch_size: int, approximate: bool) -> np.ndarray:
+def _shap_in_batches(booster: lgb.Booster, X: pd.DataFrame, batch_size: int, approximate: bool) -> np.ndarray:
     """
     LightGBM 전용 TreeExplainer로 배치 SHAP. 이진 분류일 때 클래스 축(list) 처리 포함.
     approximate=True일 때 빠르지만 약간의 오차 허용.
@@ -97,8 +97,8 @@ def _shap_in_batches(booster, X: pd.DataFrame, batch_size: int, approximate: boo
     if not _HAS_SHAP or len(X) == 0:
         return np.empty((0, X.shape[1]), dtype=float)
 
-    explainer = shap.TreeExplainer(booster)
-    out_rows: list[np.ndarray] = []
+    explainer = shap.TreeExplainer(booster)  # type: ignore
+    rows: List[np.ndarray] = []
     for start in range(0, len(X), batch_size):
         stop = min(start + batch_size, len(X))
         chunk = X.iloc[start:stop, :]
@@ -108,9 +108,70 @@ def _shap_in_batches(booster, X: pd.DataFrame, batch_size: int, approximate: boo
             sv = explainer.shap_values(chunk)
         if isinstance(sv, list):
             sv = sv[1]  # binary: positive class
-        out_rows.append(np.asarray(sv, dtype=float))
-    return np.vstack(out_rows) if out_rows else np.empty((0, X.shape[1]), dtype=float)
+        rows.append(np.asarray(sv, dtype=float))
+    return np.vstack(rows) if rows else np.empty((0, X.shape[1]), dtype=float)
 
+# ----------------------------
+# Train / Predict APIs
+# ----------------------------
+def train_model(train_uri: str, valid_uri: Optional[str] = None, params: Optional[Dict] = None):
+    df_tr = read_features(train_uri)
+    X_tr, y_tr = prepare_features(df_tr)
+
+    cat_cols = list(X_tr.select_dtypes(include="category").columns)
+    lgb_tr = lgb.Dataset(X_tr, label=y_tr, categorical_feature=cat_cols)
+
+    valid_sets = [lgb_tr]
+    if valid_uri:
+        df_va = read_features(valid_uri)
+        X_va, y_va = prepare_features(df_va)
+        lgb_va = lgb.Dataset(X_va, label=y_va, reference=lgb_tr, categorical_feature=cat_cols)
+        valid_sets.append(lgb_va)
+
+    _params = dict(
+        objective="binary",
+        metric=["auc", "binary_logloss"],
+        boosting_type="gbdt",
+        num_leaves=63,
+        learning_rate=0.05,
+        feature_fraction=0.9,
+        bagging_fraction=0.8,
+        bagging_freq=1,
+        verbose=-1,
+    )
+    if params:
+        _params.update(params)
+
+    booster = lgb.train(
+        _params,
+        lgb_tr,
+        valid_sets=valid_sets,
+        num_boost_round=200,
+        early_stopping_rounds=30 if len(valid_sets) > 1 else None,
+    )
+
+    meta = {
+        "feature_names": list(X_tr.columns),
+        "categorical_features": cat_cols,
+    }
+    save_model(booster, feature_names=meta["feature_names"], categorical_features=meta["categorical_features"])
+    return booster, meta
+
+def predict_uri(predict_uri: str) -> pd.DataFrame:
+    booster, meta = load_model()
+    feature_names: List[str] = meta.get("feature_names") or []
+    categorical_features: List[str] = meta.get("categorical_features") or []
+
+    df = read_features(predict_uri)
+    X, _ = prepare_features(df)
+
+    X = _align_features(X, feature_names, categorical_features)
+    scores = booster.predict(X, num_iteration=getattr(booster, "best_iteration", None) or -1)
+    out = pd.DataFrame({
+        "user_id": df["user_id"].astype("Int64"),
+        "churn_score": scores,
+    })
+    return out
 
 def predict_for_date(dt: str) -> Tuple[pd.DataFrame, np.ndarray, np.ndarray, List[str]]:
     """
@@ -126,22 +187,18 @@ def predict_for_date(dt: str) -> Tuple[pd.DataFrame, np.ndarray, np.ndarray, Lis
         raise RuntimeError("meta.json에 feature_names가 없습니다. 학습/저장 파이프라인을 확인하세요.")
 
     prefix = _features_prefix_for_date(dt)
-    # prefix 아래의 모든 parquet(part-*)을 읽어 하나의 DF로 합치는 유틸
     df = read_parquet_s3(prefix)
 
     if df.empty:
         return df, np.array([]), np.empty((0, len(feature_names))), feature_names
 
-    # === 전처리: 표준화 (alias/dtype/결측/카테고리) ===
     X_raw, _ = prepare_features(df)  # ID/LABEL 제외된 피처 프레임
-
-    # === 정렬/보정: 학습 feature_names 기준 ===
     X = _align_features(X_raw, feature_names, categorical_features)
 
-    # === 예측 ===
+    # 예측
     proba = _predict_in_batches(booster, X, CFG.PREDICT_BATCH_SIZE)
 
-    # === SHAP(옵션) ===
+    # SHAP
     if CFG.PREDICT_COMPUTE_SHAP and _HAS_SHAP:
         shap_values = _shap_in_batches(booster, X, CFG.SHAP_BATCH_SIZE, CFG.PREDICT_SHAP_APPROX)
     else:
