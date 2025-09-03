@@ -114,3 +114,12 @@ def write_parquet_s3(key: str, df: pd.DataFrame) -> None:
     pq.write_table(table, buf, compression="snappy")  # TODO(추후 수정): 압축 코덱 정책
     buf.seek(0)
     write_bytes_s3(key, buf.read())
+
+def read_features(path: str, columns: list[str] | None = None) -> pd.DataFrame:
+    """
+    Parquet 피처셋 로더.
+    - path: s3://bucket/prefix/file.parquet 또는 로컬 경로
+    - columns: 부분 컬럼만 읽고 싶을 때 지정
+    필요 패키지: pyarrow, (S3인 경우) s3fs
+    """
+    return pd.read_parquet(path, columns=columns)
