@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
 모델 아티팩트 저장/로드 (LightGBM Booster 기준).
-- s3://{S3_MODEL_BUCKET}/{S3_MODEL_PREFIX}/{MODEL_VERSION}/model.txt, meta.json
-- meta.json에 feature_names, categorical_features 등 저장
+- s3://{S3_MODEL_BUCKET}/{S3_MODEL_PREFIX}{MODEL_VERSION}/{model.txt, meta.json}
+- meta.json: feature_names, categorical_features, model_name 등 포함
 - Requester Pays/SSE/KMS 옵션 처리
 """
 from __future__ import annotations
@@ -15,12 +15,12 @@ import lightgbm as lgb
 from botocore.exceptions import ClientError
 
 from ..common.settings import CFG
-from ..common.io import s3_join, write_json_s3, write_bytes_s3
+from ..common.io import s3_join
 
 def _model_base_prefix() -> str:
     """
     모델 저장 베이스 prefix 생성.
-    예) models/lgbm/lgbm_v1.0_shaTODO
+    예) lgbm/lgbm_v1.0_shaTODO
     """
     return s3_join(CFG.S3_MODEL_PREFIX, CFG.MODEL_VERSION)
 
@@ -36,19 +36,21 @@ def save_model(
     - model.txt : Booster 텍스트 포맷
     - meta.json : feature_names, categorical_features, created_at, version 등
     저장 위치:
-      s3://{CFG.S3_MODEL_BUCKET}/{CFG.S3_MODEL_PREFIX}/{MODEL_VERSION}/(model.txt, meta.json)
+      s3://{CFG.S3_MODEL_BUCKET}/{CFG.S3_MODEL_PREFIX}{MODEL_VERSION}/(model.txt, meta.json)
     """
     s3 = CFG.s3_client()
     base = _model_base_prefix()
     key_model = s3_join(base, "model.txt")
     key_meta  = s3_join(base, "meta.json")
 
-    # 공통 put 옵션 (SSE/KMS)
+    # 공통 put 옵션 (SSE/KMS/RequesterPays)
     put_opts: Dict[str, Any] = {}
     if getattr(CFG, "S3_SSE", None):
-        put_opts["ServerSideEncryption"] = CFG.S3_SSE
+        put_opts["ServerSideEncryption"] = CFG.S3_SSE if CFG.S3_SSE != "aws:kms" else "aws:kms"
         if getattr(CFG, "S3_KMS_KEY_ID", None):
             put_opts["SSEKMSKeyId"] = CFG.S3_KMS_KEY_ID
+    if getattr(CFG, "S3_REQUEST_PAYER", None):
+        put_opts["RequestPayer"] = CFG.S3_REQUEST_PAYER
 
     # model.txt 직렬화 (문자열로)
     model_text: str = model.model_to_string(num_iteration=getattr(model, "best_iteration", None) or -1)
@@ -62,13 +64,16 @@ def save_model(
     # 메타 확충
     params = getattr(model, "params", {}) or {}
     meta = {
+        "model_name": CFG.MODEL_NAME,
         "feature_names": feature_names or model.feature_name() or [],
-        "categorical_features": categorical_features or [],  # 학습 파이프라인에서 주입
+        "categorical_features": categorical_features or [],
         "created_at": datetime.now(timezone.utc).isoformat(),
         "model_version": CFG.MODEL_VERSION,
         "feature_version": CFG.FEATURE_VERSION,
+        "horizon_days": int(CFG.CHURN_HORIZON_DAYS),
         "aws_region": CFG.AWS_REGION,
         "bucket": CFG.S3_MODEL_BUCKET,
+        "key_prefix": _model_base_prefix(),  # 예: lgbm/lgbm_v1.0_shaTODO
         "best_iteration": int(getattr(model, "best_iteration", None) or -1),
         "num_features": int(len(feature_names or model.feature_name() or [])),
         "objective": params.get("objective"),

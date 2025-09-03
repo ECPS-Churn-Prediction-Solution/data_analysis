@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 """
-S3 입출력 유틸.
-- list_objects_v2 페이지네이션 처리
-- parquet/CSV 읽기/쓰기
-- SSE/KMS/RequesterPays 옵션 반영
+S3/로컬 IO 유틸
+- list_keys (페이지네이션)
+- read_parquet_s3 / read_csv_s3
+- write_parquet_s3 / write_json_s3 / write_bytes_s3
+- s3_join: 경로 안전 조인(중복/누락 슬래시 방지)
 """
 from __future__ import annotations
 import io
@@ -23,9 +24,8 @@ from .settings import CFG
 # ----------------------------
 def s3_join(*parts: str) -> str:
     """
-    Join S3-style path fragments without forcing a trailing slash.
-    Example:
-        s3_join("models/lgbm", "v1", "model.txt") -> "models/lgbm/v1/model.txt"
+    Join S3-style path fragments without forcing trailing slash.
+    s3_join("lgbm", "v1", "model.txt") -> "lgbm/v1/model.txt"
     """
     cleaned = [p.strip('/') for p in parts if p is not None and p != '']
     return '/'.join(cleaned)
@@ -56,7 +56,7 @@ def _req_opts() -> Dict:
 # ----------------------------
 def list_keys(prefix: str, suffix: Optional[str] = None, *, bucket: Optional[str] = None) -> List[str]:
     """
-    주어진 prefix 하위 객체 키 목록을 반환. (suffix가 있으면 필터링)
+    주어진 prefix 하위 객체 키 목록을 반환. (suffix 지정 시 필터링)
     """
     s3 = CFG.s3_client()
     bkt = bucket or CFG.S3_BUCKET
@@ -133,10 +133,13 @@ def read_csv_s3(prefix_or_key: str, encoding: str = "utf-8", **read_csv_kwargs) 
 # ----------------------------
 def write_bytes_s3(key: str, data: bytes, *, bucket: Optional[str] = None, extra: Optional[dict] = None) -> None:
     s3 = CFG.s3_client()
-    s3.put_object(Bucket=(bucket or CFG.S3_BUCKET), Key=key, Body=data, **(extra or {}))
+    opts = _put_opts()
+    if extra:
+        opts.update(extra)
+    s3.put_object(Bucket=(bucket or CFG.S3_BUCKET), Key=key, Body=data, **opts)
 
 def write_json_s3(key: str, obj: dict, *, bucket: Optional[str] = None, extra: Optional[dict] = None) -> None:
-    data = json.dumps(obj, ensure_ascii=False).encode("utf-8")
+    data = json.dumps(obj, ensure_ascii=False, indent=2).encode("utf-8")
     write_bytes_s3(key, data, bucket=bucket, extra=extra)
 
 def write_parquet_s3(key: str, df: pd.DataFrame, *, bucket: Optional[str] = None) -> None:
@@ -145,7 +148,7 @@ def write_parquet_s3(key: str, df: pd.DataFrame, *, bucket: Optional[str] = None
     buf = io.BytesIO()
     pq.write_table(table, buf, compression="snappy")
     buf.seek(0)
-    write_bytes_s3(key, buf.read(), bucket=bucket, extra=_put_opts())
+    write_bytes_s3(key, buf.read(), bucket=bucket)
 
 # ----------------------------
 # Local/S3 transparent reader
@@ -153,7 +156,7 @@ def write_parquet_s3(key: str, df: pd.DataFrame, *, bucket: Optional[str] = None
 def read_features(path: str, columns: Optional[List[str]] = None) -> pd.DataFrame:
     """
     통합 Parquet 로더.
-    - s3://bucket/key.parquet  또는 s3://bucket/prefix/ (환경 변수가 지정된 버킷과 다르면 path의 버킷 사용)
+    - s3://bucket/key.parquet  또는 s3://bucket/prefix/ (환경 변수가 지정된 버킷과 달라도 path의 버킷 사용)
     - 로컬 경로도 지원.
     """
     if path.startswith("s3://"):

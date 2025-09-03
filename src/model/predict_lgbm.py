@@ -63,16 +63,15 @@ def _align_features(
         * 수치형: 0.0
     - 여분 컬럼은 드랍
     """
-    # 누락 컬럼 생성
     missing = [c for c in feature_names if c not in X.columns]
     if missing:
         n = len(X)
+        cat_set = set(categorical_features)
         for c in missing:
-            if c in categorical_features:
+            if c in cat_set:
                 X[c] = pd.Series(["unknown"] * n, dtype="category")
             else:
                 X[c] = 0.0
-    # 순서 강제 + 여분 드랍
     X = X.reindex(columns=feature_names)
     return X
 
@@ -90,13 +89,8 @@ def _predict_in_batches(booster: lgb.Booster, X: pd.DataFrame, batch_size: int) 
     return probs
 
 def _shap_in_batches(booster: lgb.Booster, X: pd.DataFrame, batch_size: int, approximate: bool) -> np.ndarray:
-    """
-    LightGBM 전용 TreeExplainer로 배치 SHAP. 이진 분류일 때 클래스 축(list) 처리 포함.
-    approximate=True일 때 빠르지만 약간의 오차 허용.
-    """
     if not _HAS_SHAP or len(X) == 0:
         return np.empty((0, X.shape[1]), dtype=float)
-
     explainer = shap.TreeExplainer(booster)  # type: ignore
     rows: List[np.ndarray] = []
     for start in range(0, len(X), batch_size):
@@ -153,8 +147,16 @@ def train_model(train_uri: str, valid_uri: Optional[str] = None, params: Optiona
     meta = {
         "feature_names": list(X_tr.columns),
         "categorical_features": cat_cols,
+        "model_name": CFG.MODEL_NAME,
+        "feature_version": CFG.FEATURE_VERSION,
+        "horizon_days": int(CFG.CHURN_HORIZON_DAYS),
     }
-    save_model(booster, feature_names=meta["feature_names"], categorical_features=meta["categorical_features"])
+    save_model(
+        booster,
+        feature_names=meta["feature_names"],
+        categorical_features=meta["categorical_features"],
+        extra_meta={k: meta[k] for k in ["model_name", "feature_version", "horizon_days"]},
+    )
     return booster, meta
 
 def predict_uri(predict_uri: str) -> pd.DataFrame:
