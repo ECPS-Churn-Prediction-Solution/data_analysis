@@ -153,6 +153,18 @@ def write_parquet_s3(key: str, df: pd.DataFrame, *, bucket: Optional[str] = None
 # ----------------------------
 # Local/S3 transparent reader
 # ----------------------------
+def parse_s3_uri(uri: str) -> tuple[str, str]:
+    """
+    s3://bucket/key 형태를 (bucket, key)로 파싱
+    """
+    if not uri.startswith("s3://"):
+        raise ValueError(f"Not an S3 URI: {uri}")
+    path = uri[5:]  # strip "s3://"
+    parts = path.split("/", 1)
+    if len(parts) != 2 or not parts[0] or not parts[1]:
+        raise ValueError(f"Malformed S3 URI: {uri}; expected s3://<bucket>/<key>")
+    return parts[0], parts[1]
+
 def read_features(path: str, columns: Optional[List[str]] = None) -> pd.DataFrame:
     """
     통합 Parquet 로더.
@@ -160,10 +172,8 @@ def read_features(path: str, columns: Optional[List[str]] = None) -> pd.DataFram
     - 로컬 경로도 지원.
     """
     if path.startswith("s3://"):
-        # s3://bucket/...
-        # 버킷이 CFG.S3_BUCKET과 달라도 정상 읽기
-        _, rest = path[5:].split("/", 1)
-        bucket, key = rest.split("/", 1)
+        bucket, key = parse_s3_uri(path)           # <-- 버그 수정 포인트
         return read_parquet_s3(key, columns=columns, bucket=bucket)
     else:
         return pd.read_parquet(path, columns=columns)
+

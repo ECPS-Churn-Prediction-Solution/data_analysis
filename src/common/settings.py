@@ -19,6 +19,16 @@ from botocore.config import Config as BotoConfig
 from dotenv import load_dotenv
 import psycopg2
 
+try:
+    import psycopg2  # type: ignore
+except Exception:
+    psycopg2 = None  # type: ignore
+
+try:
+    import psycopg  # psycopg3
+except Exception:
+    psycopg = None  # type: ignore
+
 load_dotenv(override=True)
 
 
@@ -41,6 +51,14 @@ class _Config:
     S3_MODEL_PREFIX: str = os.getenv("S3_MODEL_PREFIX", "lgbm/")
     MODEL_VERSION: str = os.getenv("MODEL_VERSION", "lgbm_v1.0_shaTODO")
     MODEL_NAME: str = os.getenv("MODEL_NAME", "lgbm")
+
+    FEATURE_TRAIN_URI: str = os.getenv("FEATURE_TRAIN_URI", "")
+    FEATURE_VALID_URI: str = os.getenv("FEATURE_VALID_URI", "")
+    FEATURE_PREDICT_URI: str = os.getenv("FEATURE_PREDICT_URI", "")
+
+    # ===== DB Target (predictions sink) =====
+    PG_TARGET_SCHEMA: str = os.getenv("PG_TARGET_SCHEMA", "analytics")
+    PG_TARGET_TABLE: str = os.getenv("PG_TARGET_TABLE", "churn_scores")
 
     # ===== Features/Churn meta =====
     FEATURE_VERSION: str = os.getenv("FEATURE_VERSION", "feat_v1.0")
@@ -94,14 +112,62 @@ class _Config:
 
     @contextmanager
     def connect_db(self):
-        conn = psycopg2.connect(
+        """
+        우선 psycopg2로 연결 시도 → 실패(특히 UnicodeDecodeError) 시 psycopg3로 폴백.
+        두 드라이버 모두에서 동일하게 cursor.execute / executemany 사용 가능하도록 반환.
+        """
+        last_err = None
+
+        # 1) psycopg2 우선 시도 (옵션/인코딩 강제)
+        if psycopg2 is not None:
+            try:
+                conn = psycopg2.connect(
+                    host=self.PGHOST,
+                    port=self.PGPORT,
+                    dbname=self.PGDATABASE,
+                    user=self.PGUSER,
+                    password=self.PGPASSWORD,
+                    sslmode=self.PGSSLMODE,
+                    options="-c lc_messages=C -c client_encoding=UTF8",
+                )
+                try:
+                    yield conn
+                finally:
+                    conn.close()
+                return
+            except UnicodeDecodeError as e:
+                last_err = e  # 폴백 시도
+            except Exception as e:
+                # 다른 이유로 실패해도 폴백 시도
+                last_err = e
+
+        # 2) psycopg3 (psycopg) 폴백
+        if psycopg is None:
+            # psycopg3 미설치인 경우: 친절한 에러 메시지
+            raise RuntimeError(
+                f"DB 연결 실패(psycopg2): {last_err}. "
+                "폴백 드라이버(psycopg)가 설치되어 있지 않습니다. "
+                "다음 명령으로 설치 후 재시도하세요: pip install \"psycopg[binary]\""
+            )
+
+        # psycopg3 연결 (영문 메시지)
+        conn = psycopg.connect(
             host=self.PGHOST,
             port=self.PGPORT,
             dbname=self.PGDATABASE,
             user=self.PGUSER,
             password=self.PGPASSWORD,
-            sslmode=self.PGSSLMODE,
+            sslmode=self.PGSSLMODE,  # 'require' 그대로 사용 가능
+            options="-c lc_messages=C",
+            autocommit=False,
         )
+        # 클라이언트 인코딩 UTF8 보장
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SET CLIENT_ENCODING TO 'UTF8'")
+        except Exception:
+            pass
+
         try:
             yield conn
         finally:

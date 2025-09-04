@@ -1,48 +1,71 @@
 # -*- coding: utf-8 -*-
+"""
+스코어링 결과를 S3와 DB에 적재.
+"""
 from __future__ import annotations
-import io
-from datetime import datetime
+import uuid
+from datetime import datetime, timezone, date
+from typing import Optional, Dict, Any
+
 import pandas as pd
-import pyarrow as pa, pyarrow.parquet as pq
-import boto3
 
 from ..common.settings import CFG
-from ..common.io import s3_join
+from ..common.io import s3_join, write_parquet_s3
+from ..db.writer import ensure_schema_and_table, insert_scores
 
-def _pred_prefix(dt: str, model_name: str, horizon: int) -> str:
+
+def _extract_source_dt_from_uri(uri: Optional[str]) -> Optional[date]:
+    """s3://.../dt=YYYY-MM-DD/ 를 만나면 그 날짜를 추출."""
+    if not uri:
+        return None
+    import re
+    m = re.search(r"dt=(\d{4}-\d{2}-\d{2})", uri)
+    if not m:
+        return None
+    try:
+        return date.fromisoformat(m.group(1))
+    except Exception:
+        return None
+
+
+def export_predictions(
+    df_scores: pd.DataFrame,
+    *,
+    source_uri: Optional[str] = None,
+) -> Dict[str, Any]:
     """
-    s3 key prefix:
-    {S3_PREDICTION_PREFIX}/model={model_name}/model_version={MODEL_VERSION}/
-    feature_version={FEATURE_VERSION}/horizon={horizon}/dt={dt}/
+    입력: df_scores (columns: user_id, churn_score)
+    동작:
+      1) 메타 컬럼 추가 (model_version, feature_version, scored_at, source_dt)
+      2) S3에 parquet 저장 (옵션: CFG.WRITE_PREDICTIONS_TO_S3)
+      3) DB 적재 (public.churn_scores)
+    반환: {"rows": n, "s3_key": "...", "bucket": "..."}
     """
-    return s3_join(
-        CFG.S3_PREDICTION_PREFIX.rstrip("/"),
-        f"model={model_name}",
-        f"model_version={CFG.MODEL_VERSION}",
-        f"feature_version={CFG.FEATURE_VERSION}",
-        f"horizon={int(horizon)}",
-        f"dt={dt}",
-    )
+    if df_scores.empty:
+        return {"rows": 0, "s3_key": None, "bucket": None}
 
-def export_predictions_to_s3(df: pd.DataFrame, *, dt: str, model_name: str, horizon: int) -> str:
-    table = pa.Table.from_pandas(df, preserve_index=False)
-    buf = io.BytesIO()
-    pq.write_table(table, buf, compression="snappy")
-    buf.seek(0)
+    now = datetime.now(CFG.tz_utc)
+    out = df_scores.copy()
+    out["model_version"] = CFG.MODEL_VERSION
+    out["feature_version"] = CFG.FEATURE_VERSION
+    out["scored_at"] = now
+    out["source_dt"] = _extract_source_dt_from_uri(source_uri)
 
-    key = s3_join(
-        _pred_prefix(dt, model_name, horizon),
-        f"part-{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.parquet",
-    )
+    # 1) S3 저장 (옵션)
+    s3_key = None
+    if CFG.WRITE_PREDICTIONS_TO_S3:
+        ds = now.strftime("%Y-%m-%d")
+        s3_key = s3_join(
+            CFG.S3_PREDICTION_PREFIX,
+            f"dt={ds}",
+            f"model={CFG.MODEL_VERSION}",
+            f"pred_{uuid.uuid4().hex}.parquet",
+        )
+        write_parquet_s3(s3_key, out, bucket=CFG.S3_PREDICTION_BUCKET)
 
-    extra = {}
-    if CFG.S3_SSE:
-        extra["ServerSideEncryption"] = CFG.S3_SSE
-        if CFG.S3_KMS_KEY_ID:
-            extra["SSEKMSKeyId"] = CFG.S3_KMS_KEY_ID
+    # 2) DB 적재
+    with CFG.connect_db() as conn:
+        ensure_schema_and_table(conn)
+        n = insert_scores(conn, out)
 
-    boto3.client("s3", region_name=CFG.AWS_REGION).put_object(
-    Bucket=CFG.S3_PREDICTION_BUCKET, Key=key, Body=buf.getvalue(), **extra
-    )
-    return f"s3://{CFG.S3_PREDICTION_BUCKET}/{key}"
-
+    return {"rows": int(n), "s3_key": s3_key, "bucket": CFG.S3_PREDICTION_BUCKET}

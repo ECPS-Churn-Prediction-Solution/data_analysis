@@ -109,19 +109,32 @@ def _shap_in_batches(booster: lgb.Booster, X: pd.DataFrame, batch_size: int, app
 # Train / Predict APIs
 # ----------------------------
 def train_model(train_uri: str, valid_uri: Optional[str] = None, params: Optional[Dict] = None):
+    # 1) 데이터 로드
     df_tr = read_features(train_uri)
     X_tr, y_tr = prepare_features(df_tr)
+    if y_tr is None:
+        raise ValueError("학습 파일에 'churn' 라벨 컬럼이 없습니다. 라벨을 포함한 Parquet을 지정하세요.")
 
+    # 2) LightGBM Dataset
     cat_cols = list(X_tr.select_dtypes(include="category").columns)
-    lgb_tr = lgb.Dataset(X_tr, label=y_tr, categorical_feature=cat_cols)
+    lgb_tr = lgb.Dataset(X_tr, label=y_tr, categorical_feature=cat_cols, free_raw_data=False)
 
     valid_sets = [lgb_tr]
+    valid_names = ["train"]
+    callbacks = []
+
     if valid_uri:
         df_va = read_features(valid_uri)
         X_va, y_va = prepare_features(df_va)
-        lgb_va = lgb.Dataset(X_va, label=y_va, reference=lgb_tr, categorical_feature=cat_cols)
+        if y_va is None:
+            raise ValueError("검증 파일에 'churn' 라벨 컬럼이 없습니다.")
+        lgb_va = lgb.Dataset(X_va, label=y_va, reference=lgb_tr, categorical_feature=cat_cols, free_raw_data=False)
         valid_sets.append(lgb_va)
+        valid_names.append("valid")
+        # ✅ 버전 호환 조기종료: 콜백 사용
+        callbacks.append(lgb.early_stopping(stopping_rounds=30, verbose=True))
 
+    # 3) 하이퍼파라미터
     _params = dict(
         objective="binary",
         metric=["auc", "binary_logloss"],
@@ -136,14 +149,17 @@ def train_model(train_uri: str, valid_uri: Optional[str] = None, params: Optiona
     if params:
         _params.update(params)
 
+    # 4) 학습 (콜백으로 early stopping 처리)
     booster = lgb.train(
         _params,
         lgb_tr,
-        valid_sets=valid_sets,
         num_boost_round=200,
-        early_stopping_rounds=30 if len(valid_sets) > 1 else None,
+        valid_sets=valid_sets,
+        valid_names=valid_names,
+        callbacks=callbacks,
     )
 
+    # 5) 메타 + S3 저장
     meta = {
         "feature_names": list(X_tr.columns),
         "categorical_features": cat_cols,
@@ -154,10 +170,11 @@ def train_model(train_uri: str, valid_uri: Optional[str] = None, params: Optiona
     save_model(
         booster,
         feature_names=meta["feature_names"],
-        categorical_features=meta["categorical_features"],
+        categorical_features=meta["categororical_features"] if "categororical_features" in meta else cat_cols,  # 안전망
         extra_meta={k: meta[k] for k in ["model_name", "feature_version", "horizon_days"]},
     )
     return booster, meta
+
 
 def predict_uri(predict_uri: str) -> pd.DataFrame:
     booster, meta = load_model()
