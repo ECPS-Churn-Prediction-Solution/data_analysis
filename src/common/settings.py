@@ -17,25 +17,27 @@ from contextlib import contextmanager
 import boto3
 from botocore.config import Config as BotoConfig
 from dotenv import load_dotenv
-import psycopg2
+
+# 🔧 드라이버는 try-import로만! (무조건 import 금지)
+try:
+    import psycopg2  # type: ignore[import]
+except Exception:
+    psycopg2 = None  # type: ignore[assignment]
 
 try:
-    import psycopg2  # type: ignore
+    import psycopg  # type: ignore[import]  # psycopg3
 except Exception:
-    psycopg2 = None  # type: ignore
+    psycopg = None  # type: ignore[assignment]
 
-try:
-    import psycopg  # psycopg3
-except Exception:
-    psycopg = None  # type: ignore
-
+# .env 로드
 load_dotenv(override=True)
 
 
 @dataclass(frozen=True)
 class _Config:
     # ===== AWS / S3 =====
-    AWS_REGION: str = os.getenv("AWS_REGION", "ap-northeast-2")
+    # 🔧 AWS_DEFAULT_REGION도 함께 고려 (CLI와 일관)
+    AWS_REGION: str = os.getenv("AWS_REGION") or os.getenv("AWS_DEFAULT_REGION", "ap-northeast-2")
     AWS_PROFILE: Optional[str] = os.getenv("AWS_PROFILE")  # 'default' 등
     S3_ENDPOINT_URL: Optional[str] = os.getenv("S3_ENDPOINT_URL")  # MinIO 등 사용 시
 
@@ -88,7 +90,8 @@ class _Config:
     PGDATABASE: str = os.getenv("PG_DB", os.getenv("PGDATABASE", "postgres"))
     PGUSER: str = os.getenv("PG_USER", os.getenv("PGUSER", "postgres"))
     PGPASSWORD: str = os.getenv("PG_PASSWORD", os.getenv("PGPASSWORD", ""))
-    PGSSLMODE: str = os.getenv("PG_SSLMODE", "prefer")  # require / verify-ca / verify-full 등
+    # 🔧 RDS 운영에선 'require'가 기본적으로 안전
+    PGSSLMODE: str = os.getenv("PG_SSLMODE", "require")  # prefer / require / verify-ca / verify-full
 
     @property
     def tz_utc(self):
@@ -113,12 +116,12 @@ class _Config:
     @contextmanager
     def connect_db(self):
         """
-        우선 psycopg2로 연결 시도 → 실패(특히 UnicodeDecodeError) 시 psycopg3로 폴백.
+        우선 psycopg2로 연결 시도 → 실패(특히 인코딩/모듈 부재) 시 psycopg3로 폴백.
         두 드라이버 모두에서 동일하게 cursor.execute / executemany 사용 가능하도록 반환.
         """
         last_err = None
 
-        # 1) psycopg2 우선 시도 (옵션/인코딩 강제)
+        # 1) psycopg2 우선 시도 (영문 메시지/UTF8 강제)
         if psycopg2 is not None:
             try:
                 conn = psycopg2.connect(
@@ -135,11 +138,8 @@ class _Config:
                 finally:
                     conn.close()
                 return
-            except UnicodeDecodeError as e:
-                last_err = e  # 폴백 시도
             except Exception as e:
-                # 다른 이유로 실패해도 폴백 시도
-                last_err = e
+                last_err = e  # 폴백 시도
 
         # 2) psycopg3 (psycopg) 폴백
         if psycopg is None:
@@ -157,7 +157,7 @@ class _Config:
             dbname=self.PGDATABASE,
             user=self.PGUSER,
             password=self.PGPASSWORD,
-            sslmode=self.PGSSLMODE,  # 'require' 그대로 사용 가능
+            sslmode=self.PGSSLMODE,
             options="-c lc_messages=C",
             autocommit=False,
         )
