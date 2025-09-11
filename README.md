@@ -1,3 +1,4 @@
+```
 ecps-churn/
 ├─ README.md
 ├─ .env.example # DB/S3 등 환경변수 샘플✅
@@ -41,3 +42,4 @@ ecps-churn/
 │ ├─ run_score_local.sh # 로컬 스코어링 실행✅
 │ └─ upload_model.sh # S3로 모델/설정 업로드
 └─ notebooks/ # 선택(EDA/SHAP 확인 등)
+```
